@@ -1,0 +1,19 @@
+## Ignore Python cache and compiled files
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# keep a project-specific safe entry too (fixing the typo)
+## Ignore Python cache and compiled files
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# keep a project-specific safe entry too (fixing the typo)
+/RNA_project/__pycache__/
+/RNA_project/**/.vscode/
+
