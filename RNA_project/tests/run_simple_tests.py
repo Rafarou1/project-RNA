@@ -5,37 +5,50 @@ from pathlib import Path
 
 
 def run(cmd, **kwargs):
-    return subprocess.run([sys.executable, *cmd], text=True, capture_output=True, **kwargs)
+    return subprocess.run(
+        [sys.executable, *cmd], text=True, capture_output=True, **kwargs
+    )
 
 
 def main():
-    print('Running simple functional tests (no pytest required)')
+    print("Running simple functional tests (no pytest required)")
 
     with tempfile.TemporaryDirectory() as td:
-        out_dir = Path(td) / 'pots'
-        print('Training into', out_dir)
-        r = run(['train_potential.py', '--pdb_dir', 'data/pdb_training', '--out_dir', str(out_dir)])
-        print('train stdout:\n', r.stdout)
-        print('train stderr:\n', r.stderr)
+        out_dir = Path(td) / "pots"
+        print("Training into", out_dir)
+        r = run(
+            [
+                "train_potential.py",
+                "--pdb_dir",
+                "data/pdb_training",
+                "--out_dir",
+                str(out_dir),
+            ]
+        )
+        print("train stdout:\n", r.stdout)
+        print("train stderr:\n", r.stderr)
         if r.returncode != 0:
-            print('TRAIN FAILED')
+            print("TRAIN FAILED")
             sys.exit(2)
 
         # verify files
-        expected = [f'potential_{p}.txt' for p in [
-            'AA','AU','AC','AG','UU','UC','UG','CC','CG','GG']]
+        expected = [
+            f"potential_{p}.txt"
+            for p in ["AA", "AU", "AC", "AG", "UU", "UC", "UG", "CC", "CG", "GG"]
+        ]
         for e in expected:
             if not (out_dir / e).exists():
-                print('Missing expected file:', e)
+                print("Missing expected file:", e)
                 sys.exit(3)
 
         # run scoring
-        pdb = 'data/pdb_training/1EHZ.pdb'
+        pdb = "data/pdb_training/1EHZ.pdb"
         # Instead of calling the script as a subprocess (some environments
         # don't always forward output or may buffer), import the module and
         # run the same logic directly so we can inspect results programmatically.
         import importlib.util
-        spec = importlib.util.spec_from_file_location('score_mod', 'score_structure.py')
+
+        spec = importlib.util.spec_from_file_location("score_mod", "score_structure.py")
         score_mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(score_mod)
 
@@ -60,14 +73,14 @@ def main():
                     total_score += score
                     n_pairs_used += 1
 
-        print('scored pairs:', n_pairs_used)
-        print('total pseudo-energy:', total_score)
+        print("scored pairs:", n_pairs_used)
+        print("total pseudo-energy:", total_score)
         if n_pairs_used == 0:
-            print('No pairs were scored — failing test')
+            print("No pairs were scored — failing test")
             sys.exit(5)
 
-    print('All simple tests passed')
+    print("All simple tests passed")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

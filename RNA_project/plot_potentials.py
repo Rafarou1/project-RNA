@@ -13,9 +13,15 @@ import argparse
 import matplotlib.pyplot as plt
 
 PAIR_TYPES = [
-    "AA", "AU", "AC", "AG",
-    "UU", "UC", "UG",
-    "CC", "CG",
+    "AA",
+    "AU",
+    "AC",
+    "AG",
+    "UU",
+    "UC",
+    "UG",
+    "CC",
+    "CG",
     "GG",
 ]
 
@@ -29,12 +35,13 @@ def parse_arguments():
         description="Plot RNA distance-dependent potentials."
     )
     parser.add_argument(
-        "--in_dir", type=str, required=True,
-        help="Directory containing potential_XX.txt files."
+        "--in_dir",
+        type=str,
+        required=True,
+        help="Directory containing potential_XX.txt files.",
     )
     parser.add_argument(
-        "--out_png", type=str, required=True,
-        help="Path to output PNG figure."
+        "--out_png", type=str, required=True, help="Path to output PNG figure."
     )
     return parser.parse_args()
 

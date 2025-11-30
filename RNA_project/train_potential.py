@@ -8,7 +8,7 @@ Usage:
     python train_potential.py --pdb_dir data/pdb_training --out_dir data/potentials
 
 Details:
-- Only C3' atoms
+- Can change but focusing on C3' atoms
 - Only intrachain distances
 - Only residues with sequence separation >= 4 (i, i+4, i+5, ...)
 - Distances in [0, 20] Å, 20 bins of width 1 Å
@@ -19,52 +19,59 @@ Details:
 import os
 import math
 import argparse
-from collections import defaultdict, OrderedDict
-
-BIN_WIDTH = 1.0
-MAX_DIST = 20.0
-NBINS = int(MAX_DIST / BIN_WIDTH)
+import sys
 
 VALID_BASES = {"A", "U", "C", "G"}
 
 PAIR_TYPES = [
-    "AA", "AU", "AC", "AG",
-    "UU", "UC", "UG",
-    "CC", "CG",
+    "AA",
+    "AU",
+    "AC",
+    "AG",
+    "UU",
+    "UC",
+    "UG",
+    "CC",
+    "CG",
     "GG",
 ]
 
+
 def parse_arguments():
+    # Argument parser
     parser = argparse.ArgumentParser(
         description="Train RNA distance-dependent potential from PDB structures."
     )
     parser.add_argument(
-        "--pdb_dir", type=str, required=True,
-        help="Directory containing PDB files for training."
+        "--pdb_dir",
+        type=str,
+        required=True,
+        help="Directory containing PDB files for training.",
     )
     parser.add_argument(
-        "--out_dir", type=str, required=True,
-        help="Output directory for potential profiles."
+        "--out_dir",
+        type=str,
+        required=True,
+        help="Output directory for potential profiles.",
+    )
+    parser.add_argument("--atom", default="C3'", help="Atom type to use (default: C3')")
+    parser.add_argument(
+        "--max_dist", type=float, default=20.0, help="Max distance in Å (default: 20.0)"
     )
     parser.add_argument(
-        "--verbose", action="store_true",
-        help="Print progress and summary information during training."
+        "--bin_width", type=float, default=1.0, help="Bin width in Å (default: 1.0)"
+    )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Print progress and summary information during training.",
     )
     return parser.parse_args()
 
 
-def list_pdb_files(pdb_dir):
-    files = []
-    for name in os.listdir(pdb_dir):
-        if name.lower().endswith(".pdb"):
-            files.append(os.path.join(pdb_dir, name))
-    files.sort()
-    return files
-
-
-def parse_c3_atoms(pdb_path):
+def parse_pdb_atoms(pdb_path, atom_type):
     """
-    Parse C3' atoms from a PDB file.
+    Parse atoms from a PDB file (C'3 by default).
 
     Returns a dict:
         chain_id -> list of (seq_index_in_chain, resname, (x,y,z))
@@ -74,62 +81,58 @@ def parse_c3_atoms(pdb_path):
     # To avoid multiple entries per residue, we track last residue seen in each chain
     last_resid = {}
 
-    with open(pdb_path, "r") as f:
-        for line in f:
-            if not line.startswith("ATOM"):
-                continue
+    try:
+        with open(pdb_path, "r") as f:
+            for line in f:
+                if line.startswith("ENDMDL"):
+                    break
+                if not line.startswith("ATOM"):
+                    continue
 
-            atom_name = line[12:16].strip()
-            resname = line[17:20].strip()
-            chain_id = line[21].strip() or " "
-            resseq = line[22:26].strip()
-            # altLoc (column 17 in PDB, index 16)
-            # we ignore altLoc if not space or 'A'
-            altloc = line[16].strip()
-            if altloc not in ("", "A"):
-                continue
+                atom_name = line[12:16].strip()
+                resname = line[17:20].strip()
+                chain_id = line[21].strip() or " "
+                resseq = line[22:26].strip()
+                icode = line[26]
 
-            if atom_name != "C3'":
-                continue
+                if atom_name != atom_type or resname not in VALID_BASES:
+                    continue
 
-            if resname not in VALID_BASES:
-                continue
+                # altLoc (column 17 in PDB, index 16)
+                # we ignore altLoc if not space or 'A'
+                altloc = line[16].strip()
+                if altloc not in ("", "A"):
+                    continue
 
-            try:
-                x = float(line[30:38])
-                y = float(line[38:46])
-                z = float(line[46:54])
-            except ValueError:
-                continue
-
-            resid = (chain_id, resseq)
-            if chain_id not in chains:
-                chains[chain_id] = []
-                last_resid[chain_id] = None
-
-            # Only add one C3' per residue
-            if last_resid[chain_id] != resid:
-                chains[chain_id].append((len(chains[chain_id]), resname, (x, y, z)))
-                last_resid[chain_id] = resid
+                resid = (chain_id, resseq, icode)
+                try:
+                    coords = (
+                        float(line[30:38]),
+                        float(line[38:46]),
+                        float(line[46:54]),
+                    )
+                    if chain_id not in chains:
+                        chains[chain_id] = []
+                        last_resid[chain_id] = None
+                    if last_resid[chain_id] != resid:
+                        chains[chain_id].append(
+                            (len(chains[chain_id]), resname, coords)
+                        )
+                        last_resid[chain_id] = resid
+                except ValueError:
+                    continue
+    except FileNotFoundError:
+        print(f"Warning: PDB file not found: {pdb_path}")
+        return {}
 
     return chains
 
 
-def distance(coord1, coord2):
-    dx = coord1[0] - coord2[0]
-    dy = coord1[1] - coord2[1]
-    dz = coord1[2] - coord2[2]
-    return math.sqrt(dx*dx + dy*dy + dz*dz)
-
-
-def get_bin_index(d):
-    if d < 0.0 or d > MAX_DIST:
+def get_bin_index(dist, max_dist, width):
+    # Return bin index for given distance, or None if out of range
+    if dist >= max_dist or dist < 0:
         return None
-    # Put d == MAX_DIST in the last bin
-    idx = int(d // BIN_WIDTH)
-    if idx >= NBINS:
-        idx = NBINS - 1
-    return idx
+    return int(dist // width)
 
 
 def pair_key(res1, res2):
@@ -137,95 +140,90 @@ def pair_key(res1, res2):
     Return canonical pair type from two bases (unordered).
     e.g. A/U -> AU, U/A -> AU, C/G -> CG, etc.
     """
-    pair = "".join(sorted([res1, res2]))
-    return pair
+    return "".join(sorted([res1, res2]))
 
 
 def main():
     args = parse_arguments()
     os.makedirs(args.out_dir, exist_ok=True)
 
-    pdb_files = list_pdb_files(args.pdb_dir)
-    if not pdb_files:
-        raise SystemExit(f"No PDB files found in {args.pdb_dir}")
+    nbins = int(math.ceil(args.max_dist / args.bin_width))
+    pair_counts = {p: [0] * nbins for p in PAIR_TYPES}
+    ref_counts = [0] * nbins
 
-    verbose = bool(getattr(args, "verbose", False))
+    files = [
+        os.path.join(args.pdb_dir, f)
+        for f in os.listdir(args.pdb_dir)
+        if f.endswith(".pdb")
+    ]
+    if not files:
+        sys.exit(f"No PDB files found in {args.pdb_dir}")
 
-    # Initialize counts
-    pair_bin_counts = {p: [0] * NBINS for p in PAIR_TYPES}
-    ref_bin_counts = [0] * NBINS  # XX reference
-
-    pair_total_counts = {p: 0 for p in PAIR_TYPES}
-    ref_total_count = 0
+    print(f"Starting training on {len(files)} PDB files...")
+    print(
+        f"Configuration: Atom={args.atom}, MaxDist={args.max_dist}A, BinWidth={args.bin_width}A"
+    )
 
     # --- Collect statistics from all PDBs ---
-    processed_pdbs = 0
-    for pdb in pdb_files:
-        processed_pdbs += 1
-        if verbose:
-            # report estimated residues parsed in file
-            chains_tmp = parse_c3_atoms(pdb)
-            nres = sum(len(v) for v in chains_tmp.values())
-            print(f"Processing {os.path.basename(pdb)} ({processed_pdbs}/{len(pdb_files)}): chains={len(chains_tmp)}, residues_with_C3'={nres}")
-        chains = parse_c3_atoms(pdb)
-        chains = parse_c3_atoms(pdb)
+    processed_count = 0
+    for fpath in files:
+        if args.verbose:
+            print(f"Processing: {os.path.basename(fpath)}")
+        chains = parse_pdb_atoms(fpath, args.atom)
         for chain_id, residues in chains.items():
             n = len(residues)
+            # Consider all residue pairs with separation >= 4
             for i in range(n):
-                idx_i, res_i, coord_i = residues[i]
                 for j in range(i + 4, n):  # i, i+4, i+5, ...
-                    idx_j, res_j, coord_j = residues[j]
-                    d = distance(coord_i, coord_j)
-                    if d > MAX_DIST:
-                        continue
-                    bin_idx = get_bin_index(d)
-                    if bin_idx is None:
-                        continue
+                    # Extract coordinates + compute distance
+                    coords_i = residues[i][2]
+                    coords_j = residues[j][2]
+                    d = math.dist(coords_i, coords_j)
 
-                    # Reference "XX" all pairs
-                    ref_bin_counts[bin_idx] += 1
-                    ref_total_count += 1
+                    # Determine bin index
+                    idx = get_bin_index(d, args.max_dist, args.bin_width)
 
-                    # Specific base pair
-                    pk = pair_key(res_i, res_j)
-                    if pk in pair_bin_counts:
-                        pair_bin_counts[pk][bin_idx] += 1
-                        pair_total_counts[pk] += 1
+                    if idx is not None:
+                        # Determine pair type
+                        res_i = residues[i][1]
+                        res_j = residues[j][1]
+                        key = pair_key(res_i, res_j)
 
-    if ref_total_count == 0:
-        raise SystemExit("No distances collected. Check input PDB files.")
+                        if key in pair_counts:
+                            pair_counts[key][idx] += 1
+                            ref_counts[idx] += 1
+        processed_count += 1
 
-    # --- Compute reference frequencies f_REF(XX) ---
-    f_ref = [c / ref_total_count for c in ref_bin_counts]
+    print("Calculating potentials...")
 
     # Avoid exact zeros in reference: tiny pseudocount
     EPS = 1e-12
-    f_ref = [max(fr, EPS) for fr in f_ref]
+    total_ref = sum(ref_counts) + EPS
 
     # --- Compute potentials for each pair type ---
     for pair in PAIR_TYPES:
-        counts = pair_bin_counts[pair]
-        total = pair_total_counts[pair]
+        # Compute scores for each bin
+        scores = []
+        total_pair = sum(pair_counts[pair]) + EPS
 
-        if total == 0:
-            # No data for this pair: set all scores to max penalty 10
-            scores = [10.0] * NBINS
-        else:
-            f_obs = [c / total for c in counts]
-            # Avoid zeros in observation frequencies
-            f_obs = [max(fo, EPS) for fo in f_obs]
+        for i in range(nbins):
+            # Probability observed and reference
+            p_obs = pair_counts[pair][i] / total_pair
+            p_ref = ref_counts[i] / total_ref
 
-            scores = []
-            for fr_obs, fr_ref in zip(f_obs, f_ref):
-                ratio = fr_obs / fr_ref
-                # If ratio <= 0 (should not happen with EPS), set max score
-                if ratio <= 0:
-                    score = 10.0
-                else:
+            if p_obs < EPS:
+                # If we never observed this distance, assign high energy penalty
+                score = 10.0
+            else:
+                ratio = p_obs / (p_ref + EPS)
+                if ratio > 0:
                     score = -math.log(ratio)
-                    if score > 10.0:
-                        score = 10.0
-                scores.append(score)
+                else:
+                    score = 10.0
+                # Clamp scores to avoid extreme values
+                score = min(max(score, -10.0), 10.0)
+
+            scores.append(score)
 
         out_path = os.path.join(args.out_dir, f"potential_{pair}.txt")
         with open(out_path, "w") as out_f:
@@ -234,20 +232,32 @@ def main():
 
         print(f"Wrote {out_path}")
 
-    # write a short summary to out_dir
+    # Write the Summary file
     summary_path = os.path.join(args.out_dir, "summary.txt")
     with open(summary_path, "w") as s_f:
-        s_f.write(f"pdb_files_processed: {processed_pdbs}\n")
-        s_f.write(f"total_distance_counts: {ref_total_count}\n")
+        s_f.write(f"pdb_files_processed: {processed_count}\n")
+        s_f.write(f"total_distance_counts: {sum(ref_counts)}\n")
+        s_f.write(
+            f"parameters used: Atom={args.atom}, Max={args.max_dist}, Width={args.bin_width}\n"
+        )
         s_f.write("counts_per_pair:\n")
         for p in PAIR_TYPES:
-            s_f.write(f"  {p}: {pair_total_counts[p]}\n")
+            # Use pair_counts (aggregated total), not bins directly
+            total_for_pair = sum(pair_counts[p])
+            s_f.write(f"  {p}: {total_for_pair}\n")
 
-    if verbose:
-        print(f"Wrote summary to {summary_path}")
-        print("Training completed.")
-    else:
-        print("Training completed.")
+    # Write the Params file
+    params_path = os.path.join(args.out_dir, "params.txt")
+    with open(params_path, "w") as p_f:
+        p_f.write(f"{args.atom}\n")
+        p_f.write(f"{args.max_dist}\n")
+        p_f.write(f"{args.bin_width}\n")
+
+    print(f"Training complete. Summary saved to {summary_path}")
+    print(f"Parameters saved to {params_path}")
+
+    print(f"Training complete. Processed {processed_count} files.")
+    print(f"Results saved to {args.out_dir}")
 
 
 if __name__ == "__main__":

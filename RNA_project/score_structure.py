@@ -20,9 +20,15 @@ NBINS = int(MAX_DIST / BIN_WIDTH)
 VALID_BASES = {"A", "U", "C", "G"}
 
 PAIR_TYPES = [
-    "AA", "AU", "AC", "AG",
-    "UU", "UC", "UG",
-    "CC", "CG",
+    "AA",
+    "AU",
+    "AC",
+    "AG",
+    "UU",
+    "UC",
+    "UG",
+    "CC",
+    "CG",
     "GG",
 ]
 
@@ -31,13 +37,12 @@ def parse_arguments():
     parser = argparse.ArgumentParser(
         description="Score an RNA structure with a distance-dependent potential."
     )
+    parser.add_argument("--pdb", type=str, required=True, help="PDB file to score.")
     parser.add_argument(
-        "--pdb", type=str, required=True,
-        help="PDB file to score."
-    )
-    parser.add_argument(
-        "--pot_dir", type=str, required=True,
-        help="Directory containing potential_XX.txt files."
+        "--pot_dir",
+        type=str,
+        required=True,
+        help="Directory containing potential_XX.txt files.",
     )
     return parser.parse_args()
 
@@ -104,7 +109,7 @@ def distance(coord1, coord2):
     dx = coord1[0] - coord2[0]
     dy = coord1[1] - coord2[1]
     dz = coord1[2] - coord2[2]
-    return math.sqrt(dx*dx + dy*dy + dz*dz)
+    return math.sqrt(dx * dx + dy * dy + dz * dz)
 
 
 def pair_key(res1, res2):

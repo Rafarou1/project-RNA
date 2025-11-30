@@ -4,7 +4,9 @@ from pathlib import Path
 
 
 def run(cmd, **kwargs):
-    return subprocess.run([sys.executable, *cmd], text=True, capture_output=True, **kwargs)
+    return subprocess.run(
+        [sys.executable, *cmd], text=True, capture_output=True, **kwargs
+    )
 
 
 def test_training_writes_potentials(tmp_path: Path):
@@ -12,14 +14,29 @@ def test_training_writes_potentials(tmp_path: Path):
     out_dir_str = str(out_dir)
 
     # Run training on the example dataset
-    r = run(["train_potential.py", "--pdb_dir", "data/pdb_training", "--out_dir", out_dir_str])
+    r = run(
+        [
+            "train_potential.py",
+            "--pdb_dir",
+            "data/pdb_training",
+            "--out_dir",
+            out_dir_str,
+        ]
+    )
     assert r.returncode == 0, f"train_potential failed: {r.stderr}\n{r.stdout}"
 
     # Expect 10 potential files + summary
     expected_pairs = [
-        "AA", "AU", "AC", "AG",
-        "UU", "UC", "UG",
-        "CC", "CG", "GG",
+        "AA",
+        "AU",
+        "AC",
+        "AG",
+        "UU",
+        "UC",
+        "UG",
+        "CC",
+        "CG",
+        "GG",
     ]
 
     for p in expected_pairs:
@@ -37,7 +54,15 @@ def test_training_writes_potentials(tmp_path: Path):
 def test_scoring_uses_potentials(tmp_path: Path):
     # First train to tmp dir
     out_dir = tmp_path / "potentials_out2"
-    r = run(["train_potential.py", "--pdb_dir", "data/pdb_training", "--out_dir", str(out_dir)])
+    r = run(
+        [
+            "train_potential.py",
+            "--pdb_dir",
+            "data/pdb_training",
+            "--out_dir",
+            str(out_dir),
+        ]
+    )
     assert r.returncode == 0
 
     # Now run scoring on the sample PDB using generated potentials
