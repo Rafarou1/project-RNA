@@ -15,6 +15,7 @@ The pipeline consists of three modules:
 
 ## Project Structure
 
+```text
 project-RNA/
 ├── data/
 │   ├── pdb_training/       # Directory containing .pdb files
