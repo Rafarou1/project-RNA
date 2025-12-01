@@ -20,12 +20,14 @@ def parse_arguments():
     parser = argparse.ArgumentParser(
         description="Score an RNA structure with a distance-dependent potential."
     )
-    parser.add_argument("--pdb", type=str, required=True, help="PDB file to score.")
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--pdb", help="Single PDB file to score.")
+    group.add_argument("--pdb_dir", help="Directory containing PDB files to score.")
+
     parser.add_argument(
         "--pot_dir",
-        type=str,
         required=True,
-        help="Directory containing potential_XX.txt files.",
+        help="Directory containing potentials and params.txt.",
     )
     parser.add_argument("--verbose", action="store_true", help="Print detailed info.")
     return parser.parse_args()
@@ -83,29 +85,12 @@ def interpolate_score(dist, scores, bin_width, max_dist):
     return score_low + (score_high - score_low) * frac
 
 
-def main():
-    args = parse_arguments()
-
-    # Load Training Parameters
-    atom_type, max_dist, bin_width = load_params(args.pot_dir)
-    nbins = int(math.ceil(max_dist / bin_width))
-
-    if args.verbose:
-        print(f"Loaded Params: Atom={atom_type}, MaxDist={max_dist}, Width={bin_width}")
-
-    # Load Potentials
-    potentials = load_potentials(args.pot_dir, nbins)
-    if not potentials:
-        sys.exit("No potentials loaded.")
-
-    # Parse PDB
-    chains = parse_pdb_atoms(args.pdb, atom_type)
+def score_single_file(pdb_path, atom_type, potentials, bin_width, max_dist):
+    """Helper function to score one file."""
+    chains = parse_pdb_atoms(pdb_path, atom_type)
     if not chains:
-        print(f"No valid {atom_type} atoms found in {args.pdb}.")
-        print("Estimated pseudo-energy: 0.0")
-        return
+        return None, 0
 
-    # Calculate Score
     total_score = 0.0
     pairs_used = 0
 
@@ -113,9 +98,9 @@ def main():
         n = len(residues)
         for i in range(n):
             for j in range(i + 4, n):
+                # residue format: (index, resname, coords)
                 r1_name = residues[i][1]
                 r1_coords = residues[i][2]
-
                 r2_name = residues[j][1]
                 r2_coords = residues[j][2]
 
@@ -123,17 +108,58 @@ def main():
 
                 if d < max_dist:
                     key = pair_key(r1_name, r2_name)
-
                     if key in potentials:
                         score = interpolate_score(
                             d, potentials[key], bin_width, max_dist
                         )
                         total_score += score
                         pairs_used += 1
+    return total_score, pairs_used
 
-    print(f"Structure: {os.path.basename(args.pdb)}")
-    print(f"Number of pairs used: {pairs_used}")
-    print(f"Estimated pseudo-energy: {total_score:.4f}")
+
+def main():
+    args = parse_arguments()
+
+    # Load Training Parameters
+    atom_type, max_dist, bin_width = load_params(args.pot_dir)
+    nbins = int(math.ceil(max_dist / bin_width))
+
+    # Load Potentials
+    potentials = load_potentials(args.pot_dir, nbins)
+    if not potentials:
+        sys.exit("No potentials loaded.")
+
+    files_to_score = []
+    if args.pdb:
+        files_to_score.append(args.pdb)
+    elif args.pdb_dir:
+        if not os.path.exists(args.pdb_dir):
+            sys.exit(f"Error: Directory {args.pdb_dir} not found.")
+        files_to_score = [
+            os.path.join(args.pdb_dir, f)
+            for f in os.listdir(args.pdb_dir)
+            if f.endswith(".pdb")
+        ]
+
+    if not files_to_score:
+        print("No PDB files found to score.")
+        return
+
+    print(f"Scoring {len(files_to_score)} structure(s) using atom {atom_type}...")
+    print(f"{'Structure':<30} {'Pairs':<10} {'Energy':<15}")
+    print("-" * 60)
+
+    # 3. Loop and Score
+    for pdb_file in files_to_score:
+        score, count = score_single_file(
+            pdb_file, atom_type, potentials, bin_width, max_dist
+        )
+        name = os.path.basename(pdb_file)
+
+        if score is None:
+            print(f"{name:<30} {'0':<10} {'ERROR':<15}")
+        else:
+            print(f"{name:<30} {count:<10} {score:<15.4f}")
 
 
 if __name__ == "__main__":

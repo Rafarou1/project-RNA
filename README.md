@@ -16,14 +16,15 @@ The pipeline consists of three modules:
 ## Project Structure
 
 ```text
-project-RNA/
+project-RNA/RNA_project/
 ├── data/
-│   ├── pdb_training/       # Directory containing .pdb files
-│   └── potentials/         # Output directory for generated potential files
-├── train_potential.py      # Script 1: Extracts statistics and generates potentials
-├── plot_potentials.py      # Script 2: Visualizes the scoring profiles
-├── score_structure.py      # Script 3: Evaluates a PDB structure using the potentials
-└── README.md
+│   ├── pdb_training/
+│   └── potentials/
+├── train_potential.py
+├── plot_potentials.py
+├── score_structure.py
+├── rna_utils.py
+└── run_pipeline.py  
 ```
 
 ### 1\. Training
