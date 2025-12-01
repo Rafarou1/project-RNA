@@ -13,19 +13,7 @@ import argparse
 import matplotlib.pyplot as plt
 import sys
 import math
-
-PAIR_TYPES = [
-    "AA",
-    "AU",
-    "AC",
-    "AG",
-    "UU",
-    "UC",
-    "UG",
-    "CC",
-    "CG",
-    "GG",
-]
+from rna_utils import load_params, PAIR_TYPES
 
 
 def parse_arguments():
@@ -42,20 +30,6 @@ def parse_arguments():
         "--out_png", type=str, required=True, help="Path to output PNG figure."
     )
     return parser.parse_args()
-
-
-def load_params(path):
-    params_path = os.path.join(path, "params.txt")
-    try:
-        with open(params_path, "r") as f:
-            lines = [line.strip() for line in f.readlines()]
-            atom = lines[0]
-            max_dist = float(lines[1])
-            bin_width = float(lines[2])
-            return atom, max_dist, bin_width
-    except Exception as e:
-        print(f"Error reading parameters from {params_path}: {e}")
-        sys.exit(1)
 
 
 def main():

@@ -13,21 +13,7 @@ import os
 import math
 import argparse
 import sys
-
-VALID_BASES = {"A", "U", "C", "G"}
-
-PAIR_TYPES = [
-    "AA",
-    "AU",
-    "AC",
-    "AG",
-    "UU",
-    "UC",
-    "UG",
-    "CC",
-    "CG",
-    "GG",
-]
+from rna_utils import parse_pdb_atoms, pair_key, load_params, PAIR_TYPES, VALID_BASES
 
 
 def parse_arguments():
@@ -45,24 +31,6 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def load_params(pot_dir):
-    params_path = os.path.join(pot_dir, "params.txt")
-    try:
-        with open(params_path, "r") as f:
-            lines = [line.strip() for line in f.readlines()]
-            if len(lines) < 3:
-                raise ValueError("params.txt is incomplete")
-
-            atom_type = lines[0]
-            max_dist = float(lines[1])
-            bin_width = float(lines[2])
-            return atom_type, max_dist, bin_width
-    except FileNotFoundError:
-        sys.exit(f"Error: {params_path} not found. Did you run train_potential.py?")
-    except ValueError as e:
-        sys.exit(f"Error reading params.txt: {e}")
-
-
 def load_potentials(pot_dir, nbins):
     potentials = {}
     for pair in PAIR_TYPES:
@@ -77,62 +45,6 @@ def load_potentials(pot_dir, nbins):
 
         potentials[pair] = scores
     return potentials
-
-
-def parse_pdb_atoms(pdb_path, atom_type):
-    """
-    Same as in training: returns chain_id -> list of (seq_index, resname, (x,y,z))
-    """
-    chains = {}
-    last_resid = {}
-
-    try:
-        with open(pdb_path, "r") as f:
-            for line in f:
-                if line.startswith("ENDMDL"):
-                    break
-                if not line.startswith("ATOM"):
-                    continue
-
-                atom_name = line[12:16].strip()
-                resname = line[17:20].strip()
-                chain_id = line[21].strip() or " "
-                resseq = line[22:26].strip()
-                icode = line[26]
-
-                if atom_name != atom_type or resname not in VALID_BASES:
-                    continue
-
-                alt_loc = line[16].strip()
-                if alt_loc not in ["", "A"]:
-                    continue
-
-                resid = (chain_id, resseq, icode)
-                try:
-                    coords = (
-                        float(line[30:38]),
-                        float(line[38:46]),
-                        float(line[46:54]),
-                    )
-                    if chain_id not in chains:
-                        chains[chain_id] = []
-                        last_resid[chain_id] = None
-                    if last_resid[chain_id] != resid:
-                        chains[chain_id].append(
-                            (len(chains[chain_id]), resname, coords)
-                        )
-                        last_resid[chain_id] = resid
-                except ValueError:
-                    continue
-    except FileNotFoundError:
-        print(f"Warning: PDB file not found: {pdb_path}")
-        return {}
-
-    return chains
-
-
-def pair_key(res1, res2):
-    return "".join(sorted([res1, res2]))
 
 
 def interpolate_score(dist, scores, bin_width, max_dist):
