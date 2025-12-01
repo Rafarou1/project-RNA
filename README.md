@@ -24,6 +24,7 @@ project-RNA/
 ├── plot_potentials.py      # Script 2: Visualizes the scoring profiles
 ├── score_structure.py      # Script 3: Evaluates a PDB structure using the potentials
 └── README.md
+```
 
 ### 1\. Training
 
