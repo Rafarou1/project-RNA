@@ -20,7 +20,7 @@ import os
 import math
 import argparse
 import sys
-from rna_utils import parse_pdb_atoms, get_bin_index, pair_key, PAIR_TYPES, VALID_BASES
+from rna_utils import parse_pdb_atoms, get_bin_index, pair_key, PAIR_TYPES
 
 
 def parse_arguments():

@@ -11,7 +11,6 @@ Usage:
 import os
 import argparse
 import matplotlib.pyplot as plt
-import sys
 import math
 from rna_utils import load_params, PAIR_TYPES
 

@@ -13,7 +13,7 @@ import os
 import math
 import argparse
 import sys
-from rna_utils import parse_pdb_atoms, pair_key, load_params, PAIR_TYPES, VALID_BASES
+from rna_utils import parse_pdb_atoms, pair_key, load_params, PAIR_TYPES
 
 
 def parse_arguments():
