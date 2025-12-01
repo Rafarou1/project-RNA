@@ -12,10 +12,7 @@ Usage:
 import os
 import math
 import argparse
-
-BIN_WIDTH = 1.0
-MAX_DIST = 20.0
-NBINS = int(MAX_DIST / BIN_WIDTH)
+import sys
 
 VALID_BASES = {"A", "U", "C", "G"}
 
@@ -44,79 +41,101 @@ def parse_arguments():
         required=True,
         help="Directory containing potential_XX.txt files.",
     )
+    parser.add_argument("--verbose", action="store_true", help="Print detailed info.")
     return parser.parse_args()
 
 
-def load_potentials(pot_dir):
-    profiles = {}
+def load_params(pot_dir):
+    params_path = os.path.join(pot_dir, "params.txt")
+    try:
+        with open(params_path, "r") as f:
+            lines = [line.strip() for line in f.readlines()]
+            if len(lines) < 3:
+                raise ValueError("params.txt is incomplete")
+
+            atom_type = lines[0]
+            max_dist = float(lines[1])
+            bin_width = float(lines[2])
+            return atom_type, max_dist, bin_width
+    except FileNotFoundError:
+        sys.exit(f"Error: {params_path} not found. Did you run train_potential.py?")
+    except ValueError as e:
+        sys.exit(f"Error reading params.txt: {e}")
+
+
+def load_potentials(pot_dir, nbins):
+    potentials = {}
     for pair in PAIR_TYPES:
         fname = os.path.join(pot_dir, f"potential_{pair}.txt")
         if not os.path.exists(fname):
-            raise FileNotFoundError(f"Missing potential file: {fname}")
+            print(f"Warning: Missing potential file {fname}")
+            continue
         with open(fname, "r") as f:
-            vals = [float(line.strip()) for line in f if line.strip()]
-        if len(vals) != NBINS:
-            raise ValueError(f"{fname} must have {NBINS} lines.")
-        profiles[pair] = vals
-    return profiles
+            scores = [float(line.strip()) for line in f if line.strip()]
+        if len(scores) != nbins:
+            print(f"Warning: {pair} has {len(scores)} bins, expected {nbins}.")
+
+        potentials[pair] = scores
+    return potentials
 
 
-def parse_c3_atoms(pdb_path):
+def parse_pdb_atoms(pdb_path, atom_type):
     """
     Same as in training: returns chain_id -> list of (seq_index, resname, (x,y,z))
     """
     chains = {}
     last_resid = {}
 
-    with open(pdb_path, "r") as f:
-        for line in f:
-            if not line.startswith("ATOM"):
-                continue
+    try:
+        with open(pdb_path, "r") as f:
+            for line in f:
+                if line.startswith("ENDMDL"):
+                    break
+                if not line.startswith("ATOM"):
+                    continue
 
-            atom_name = line[12:16].strip()
-            resname = line[17:20].strip()
-            chain_id = line[21].strip() or " "
-            resseq = line[22:26].strip()
-            altloc = line[16].strip()
-            if altloc not in ("", "A"):
-                continue
+                atom_name = line[12:16].strip()
+                resname = line[17:20].strip()
+                chain_id = line[21].strip() or " "
+                resseq = line[22:26].strip()
+                icode = line[26]
 
-            if atom_name != "C3'":
-                continue
-            if resname not in VALID_BASES:
-                continue
+                if atom_name != atom_type or resname not in VALID_BASES:
+                    continue
 
-            try:
-                x = float(line[30:38])
-                y = float(line[38:46])
-                z = float(line[46:54])
-            except ValueError:
-                continue
+                alt_loc = line[16].strip()
+                if alt_loc not in ["", "A"]:
+                    continue
 
-            resid = (chain_id, resseq)
-            if chain_id not in chains:
-                chains[chain_id] = []
-                last_resid[chain_id] = None
-
-            if last_resid[chain_id] != resid:
-                chains[chain_id].append((len(chains[chain_id]), resname, (x, y, z)))
-                last_resid[chain_id] = resid
+                resid = (chain_id, resseq, icode)
+                try:
+                    coords = (
+                        float(line[30:38]),
+                        float(line[38:46]),
+                        float(line[46:54]),
+                    )
+                    if chain_id not in chains:
+                        chains[chain_id] = []
+                        last_resid[chain_id] = None
+                    if last_resid[chain_id] != resid:
+                        chains[chain_id].append(
+                            (len(chains[chain_id]), resname, coords)
+                        )
+                        last_resid[chain_id] = resid
+                except ValueError:
+                    continue
+    except FileNotFoundError:
+        print(f"Warning: PDB file not found: {pdb_path}")
+        return {}
 
     return chains
-
-
-def distance(coord1, coord2):
-    dx = coord1[0] - coord2[0]
-    dy = coord1[1] - coord2[1]
-    dz = coord1[2] - coord2[2]
-    return math.sqrt(dx * dx + dy * dy + dz * dz)
 
 
 def pair_key(res1, res2):
     return "".join(sorted([res1, res2]))
 
 
-def interpolate_score(d, scores):
+def interpolate_score(dist, scores, bin_width, max_dist):
     """
     Linear interpolation of score for distance d given a discrete profile 'scores'.
 
@@ -128,58 +147,80 @@ def interpolate_score(d, scores):
     - if d >= MAX_DIST: use last score
     - else: find surrounding bin centers and interpolate.
     """
-    if d <= 0.0:
+    if dist <= 0.0:
         return scores[0]
-    if d >= MAX_DIST:
+    if dist >= max_dist:
         return scores[-1]
 
     # position in bins
     # center of bin i is (i+0.5)*BIN_WIDTH
-    x = d / BIN_WIDTH - 0.5
-    if x <= 0:
+    val_idx = dist / bin_width - 0.5
+    idx_low = int(math.floor(val_idx))
+    idx_high = idx_low + 1
+    if idx_low <= 0:
         return scores[0]
-    if x >= NBINS - 1:
+    if idx_high >= len(scores):
         return scores[-1]
 
-    i_low = int(math.floor(x))
-    i_high = i_low + 1
-    frac = x - i_low
+    frac = val_idx - idx_low
 
-    s_low = scores[i_low]
-    s_high = scores[i_high]
+    score_low = scores[idx_low]
+    score_high = scores[idx_high]
 
-    return (1.0 - frac) * s_low + frac * s_high
+    # Linear interpolation
+    return score_low + (score_high - score_low) * frac
 
 
 def main():
     args = parse_arguments()
 
-    potentials = load_potentials(args.pot_dir)
-    chains = parse_c3_atoms(args.pdb)
+    # Load Training Parameters
+    atom_type, max_dist, bin_width = load_params(args.pot_dir)
+    nbins = int(math.ceil(max_dist / bin_width))
 
+    if args.verbose:
+        print(f"Loaded Params: Atom={atom_type}, MaxDist={max_dist}, Width={bin_width}")
+
+    # Load Potentials
+    potentials = load_potentials(args.pot_dir, nbins)
+    if not potentials:
+        sys.exit("No potentials loaded.")
+
+    # Parse PDB
+    chains = parse_pdb_atoms(args.pdb, atom_type)
+    if not chains:
+        print(f"No valid {atom_type} atoms found in {args.pdb}.")
+        print("Estimated pseudo-energy: 0.0")
+        return
+
+    # Calculate Score
     total_score = 0.0
-    n_pairs_used = 0
+    pairs_used = 0
 
     for chain_id, residues in chains.items():
         n = len(residues)
         for i in range(n):
-            idx_i, res_i, coord_i = residues[i]
             for j in range(i + 4, n):
-                idx_j, res_j, coord_j = residues[j]
-                d = distance(coord_i, coord_j)
-                if d > MAX_DIST:
-                    continue
+                r1_name = residues[i][1]
+                r1_coords = residues[i][2]
 
-                pk = pair_key(res_i, res_j)
-                if pk not in potentials:
-                    continue
+                r2_name = residues[j][1]
+                r2_coords = residues[j][2]
 
-                score = interpolate_score(d, potentials[pk])
-                total_score += score
-                n_pairs_used += 1
+                d = math.dist(r1_coords, r2_coords)
 
-    print(f"Structure: {args.pdb}")
-    print(f"Number of C3'-C3' pairs used: {n_pairs_used}")
+                if d < max_dist:
+                    key = pair_key(r1_name, r2_name)
+
+                    if key in potentials:
+                        score = interpolate_score(
+                            d, potentials[key], bin_width, max_dist
+                        )
+                        total_score += score
+                        pairs_used += 1
+
+    print(f"Structure: {os.path.basename(args.pdb)}")
+    print(f"Number of pairs used: {pairs_used}")
     print(f"Estimated pseudo-energy: {total_score:.4f}")
 
 
