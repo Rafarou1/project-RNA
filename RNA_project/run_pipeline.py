@@ -16,8 +16,8 @@ import os
 # Adjust these paths to match your project structure
 DATA_DIR = "data"
 PDB_TRAINING_DIR = os.path.join(DATA_DIR, "pdb_training")
-POTENTIALS_DIR = os.path.join(DATA_DIR, "potentials")
-PLOT_FILE = os.path.join(POTENTIALS_DIR, "potentials.png")
+POTENTIALS_DIR = os.path.join(DATA_DIR, "potentials_multi")
+PLOT_FILE = os.path.join(POTENTIALS_DIR, "potentials_multi.png")
 
 # Executables
 SCRIPT_TRAIN = "train_potential.py"

@@ -292,23 +292,65 @@ def run_scoring(pdb_path, pot_dir):
 def main():
     init_session_state()
 
+    # --- CSS: Sidebar Styling ---
+    # This transforms the standard Radio buttons into a modern navigation menu
+    st.markdown("""
+        <style>
+        /* Target the sidebar radio widget */
+        [data-testid="stSidebar"] [data-testid="stRadio"] > div {
+            gap: 10px;
+        }
+        /* Style the labels to look like buttons */
+        [data-testid="stSidebar"] [data-testid="stRadio"] label {
+            background-color: #f0f2f6;
+            padding: 10px 15px;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+            transition: all 0.3s;
+        }
+        /* Hover effect */
+        [data-testid="stSidebar"] [data-testid="stRadio"] label:hover {
+            background-color: #e0e2e6;
+            border-color: #d0d0d0;
+        }
+        /* Hide the actual radio circle/dot */
+        [data-testid="stSidebar"] [data-testid="stRadio"] div[role="radio"] > div:first-child {
+            display: none;
+        }
+        /* Selected state (Streamlit usually handles color, but we can enforce bold) */
+        [data-testid="stSidebar"] [data-testid="stRadio"] label[data-checked="true"] {
+            background-color: #e6f3ff;
+            border-color: #2e86de;
+            font-weight: bold;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
     # --- Sidebar Layout ---
     with st.sidebar:
-        st.image("logo.png", use_container_width=True)
-        st.markdown("## **RNA Potentials**")
+        # Robust Logo Loading
+        if os.path.exists("logo.png"):
+            st.image("logo.png", use_container_width=True)
+        else:
+            st.markdown("## 🧬 **RNA Potentials**")
+            
         st.write("v1.2.0")
-
         st.divider()
-
-        # Navigation
-        page = st.radio("Navigation", ["Welcome", "Analysis"])
+        
+        # Navigation with Icons
+        # Note: We use formatting_func or simple strings with emojis for looks
+        page = st.radio(
+            "Main Menu", 
+            ["🏠  Welcome", "📊  Analysis"], 
+            label_visibility="collapsed" # Hides the title "Main Menu" for a cleaner look
+        )
 
     # --- PAGE: WELCOME ---
-    if page == "Welcome":
+    if "Welcome" in page:
         st.title("Welcome to RNA Potentials")
-
+        
         col1, col2 = st.columns([2, 1])
-
+        
         with col1:
             st.markdown("""
             ### Introduction
@@ -319,9 +361,9 @@ def main():
             
             **Instructions:**
             1. **Deposit Files:** Upload your PDB training dataset below.
-            2. **Go to Analysis:** Switch to the Analysis page to train the model, visualize potentials, and score new structures.
+            2. **Go to Analysis:** Switch to the Analysis page to train the model, visualise potentials, and score new structures.
             """)
-
+            
         with col2:
             st.info("""
             **Supported Format:** PDB
@@ -330,190 +372,115 @@ def main():
             """)
 
         st.divider()
-
+        
         st.subheader("Data Deposit")
-        st.write(
-            "Upload the PDB files you wish to use for training the statistical potential."
-        )
-
-        uploaded_files = st.file_uploader(
-            "Drop PDB files here", accept_multiple_files=True, type=["pdb"]
-        )
-
+        st.write("Upload the PDB files you wish to use for training the statistical potential.")
+        
+        uploaded_files = st.file_uploader("Drop PDB files here", accept_multiple_files=True, type=["pdb"])
+        
         if uploaded_files:
-            # Create a persistent temp dir for this session if not exists
             if not st.session_state["training_data_dir"]:
-                st.session_state["training_data_dir"] = tempfile.mkdtemp(
-                    prefix="rna_train_"
-                )
-
-            # Save files
+                st.session_state["training_data_dir"] = tempfile.mkdtemp(prefix="rna_train_")
+            
             save_uploaded_files(uploaded_files, st.session_state["training_data_dir"])
-            st.session_state["training_file_count"] = len(
-                os.listdir(st.session_state["training_data_dir"])
-            )
-
+            st.session_state["training_file_count"] = len(os.listdir(st.session_state["training_data_dir"]))
+            
             st.success(f"Successfully deposited {len(uploaded_files)} files.")
             st.markdown("👉 **Navigate to the 'Analysis' page to proceed.**")
 
-        # Show current status if files exist
         elif st.session_state["training_file_count"] > 0:
-            st.info(
-                f"Current Deposit: {st.session_state['training_file_count']} files ready for analysis."
-            )
+            st.info(f"Current Deposit: {st.session_state['training_file_count']} files ready for analysis.")
 
     # --- PAGE: ANALYSIS ---
-    elif page == "Analysis":
+    elif "Analysis" in page:
         st.title("Analysis Dashboard")
 
         # Tabs
-        tab_train, tab_viz, tab_score = st.tabs(
-            ["Train Model", "Visualise Potentials", "Score Structure"]
-        )
+        tab_train, tab_viz, tab_score = st.tabs(["Train Model", "Visualise Potentials", "Score Structure"])
 
         # --- TAB: TRAIN ---
         with tab_train:
             col1, col2 = st.columns([1, 2])
-
             with col1:
                 st.subheader("Settings")
-
-                # Atom Type Dropdown
                 atom_options = ["C3'", "P", "C4'", "C5'", "O3'", "O5'", "C1'", "C2'"]
-                atom_type = st.selectbox(
-                    "Atom Type",
-                    atom_options,
-                    index=0,
-                    help="Select the atom used for distance calculations",
-                )
-
+                atom_type = st.selectbox("Atom Type", atom_options, index=0)
                 max_dist = st.number_input("Max Distance (Å)", value=20.0, step=1.0)
                 bin_width = st.number_input("Bin Width (Å)", value=1.0, step=0.1)
-
+            
             with col2:
                 st.subheader("Execution")
-
                 file_count = st.session_state["training_file_count"]
-
+                
                 if file_count > 0:
                     st.success(f"Using {file_count} files from Data Deposit.")
                     if st.button("Start Training", type="primary"):
                         with tempfile.TemporaryDirectory() as tmp_out:
                             success, msg = run_training(
-                                st.session_state["training_data_dir"],
-                                tmp_out,
-                                atom_type,
-                                max_dist,
-                                bin_width,
+                                st.session_state["training_data_dir"], 
+                                tmp_out, atom_type, max_dist, bin_width
                             )
-
                             if success:
                                 st.success("Training Complete")
-
-                                # Persist results
-                                persist_dir = os.path.join(
-                                    tempfile.gettempdir(),
-                                    "streamlit_rna_potentials_results",
-                                )
-                                if os.path.exists(persist_dir):
-                                    shutil.rmtree(persist_dir)
+                                persist_dir = os.path.join(tempfile.gettempdir(), "streamlit_rna_potentials_results")
+                                if os.path.exists(persist_dir): shutil.rmtree(persist_dir)
                                 shutil.copytree(tmp_out, persist_dir)
                                 st.session_state["potentials_dir"] = persist_dir
-
-                                # Download
                                 zip_bytes = zip_directory(tmp_out)
-                                st.download_button(
-                                    "Download Potentials (.zip)",
-                                    zip_bytes,
-                                    "potentials.zip",
-                                    "application/zip",
-                                )
+                                st.download_button("Download Potentials (.zip)", zip_bytes, "potentials.zip", "application/zip")
                             else:
                                 st.error(msg)
                 else:
-                    st.warning(
-                        "No training files found. Please go to the 'Welcome' page to deposit files."
-                    )
+                    st.warning("No training files found. Please deposit files in the Welcome page.")
 
         # --- TAB: VISUALISE ---
         with tab_viz:
             active_dir = st.session_state["potentials_dir"]
-
-            # Allow external upload override if needed, essentially "load from zip"
             col_opt, _ = st.columns([1, 2])
             with col_opt:
-                upload_override = st.file_uploader(
-                    "Or load external potentials (.zip)", type="zip"
-                )
-
+                upload_override = st.file_uploader("Or load external potentials (.zip)", type="zip")
+            
             if upload_override:
-                temp_extract = os.path.join(
-                    tempfile.gettempdir(), "streamlit_uploaded_pots"
-                )
-                if os.path.exists(temp_extract):
-                    shutil.rmtree(temp_extract)
+                temp_extract = os.path.join(tempfile.gettempdir(), "streamlit_uploaded_pots")
+                if os.path.exists(temp_extract): shutil.rmtree(temp_extract)
                 os.makedirs(temp_extract)
                 with zipfile.ZipFile(upload_override, "r") as z:
                     z.extractall(temp_extract)
-                # handle nesting
                 if not os.path.exists(os.path.join(temp_extract, "params.txt")):
-                    subdirs = [
-                        d
-                        for d in os.listdir(temp_extract)
-                        if os.path.isdir(os.path.join(temp_extract, d))
-                    ]
-                    if subdirs:
-                        temp_extract = os.path.join(temp_extract, subdirs[0])
+                    subdirs = [d for d in os.listdir(temp_extract) if os.path.isdir(os.path.join(temp_extract, d))]
+                    if subdirs: temp_extract = os.path.join(temp_extract, subdirs[0])
                 active_dir = temp_extract
 
             if active_dir:
                 fig, err = run_plotting_interactive(active_dir)
-                if err:
-                    st.error(err)
-                else:
-                    st.plotly_chart(fig, use_container_width=True)
+                if err: st.error(err)
+                else: st.plotly_chart(fig, use_container_width=True)
             else:
                 st.info("Train a model or upload a zip to see visualizations.")
 
         # --- TAB: SCORE ---
         with tab_score:
             col_in, col_res = st.columns(2)
-
             with col_in:
                 st.subheader("Input")
                 target_pdb = st.file_uploader("Target PDB Structure", type="pdb")
-                pot_dir = st.session_state["potentials_dir"] or (
-                    active_dir if "active_dir" in locals() else None
-                )
-
-                if not pot_dir:
-                    st.error("No potentials loaded.")
-
-                score_btn = st.button(
-                    "Calculate Score", disabled=(not pot_dir or not target_pdb)
-                )
+                pot_dir = st.session_state["potentials_dir"] or (active_dir if 'active_dir' in locals() else None)
+                if not pot_dir: st.error("No potentials loaded.")
+                score_btn = st.button("Calculate Score", disabled=(not pot_dir or not target_pdb))
 
             with col_res:
                 st.subheader("Results")
                 if score_btn and pot_dir and target_pdb:
-                    with tempfile.NamedTemporaryFile(
-                        delete=False, suffix=".pdb"
-                    ) as tmp:
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdb") as tmp:
                         tmp.write(target_pdb.getbuffer())
                         tpath = tmp.name
-
                     score, pairs, err = run_scoring(tpath, pot_dir)
-
-                    if err:
-                        st.error(err)
+                    if err: st.error(err)
                     else:
                         st.metric("Total Pseudo-Energy", f"{score:.4f}")
                         st.metric("Interactions Counted", pairs)
-
-                        if score < 0:
-                            st.success("Favourable conformation")
-                        else:
-                            st.warning("Unfavourable conformation")
+                        if score < 0: st.success("Favourable conformation")
+                        else: st.warning("Unfavourable conformation")
 
 
 if __name__ == "__main__":
