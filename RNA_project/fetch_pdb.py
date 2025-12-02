@@ -116,13 +116,13 @@ def get_latest_rna_structures(limit=50):
 def download_only_pdb_structures(structures, save_dir, target_count=10):
     """
     Downloads .pdb files.
-    Skips entries that do not have a .pdb file (e.g. large structures only available in .cif).
-    Stops when target_count is reached.
+    Skips entries that do not have a .pdb file.
+    Checks directory for existing files to avoid re-downloading.
     
     Args:
         structures (list): List of dicts with 'id' keys.
         save_dir (str): Directory path to save files.
-        target_count (int): How many successful downloads we want.
+        target_count (int): How many NEW successful downloads we want.
     """
     # Create directory if it doesn't exist
     if not os.path.exists(save_dir):
@@ -133,9 +133,19 @@ def download_only_pdb_structures(structures, save_dir, target_count=10):
             print(f"Error creating directory {save_dir}: {e}")
             return
 
+    # --- NEW: Inventory existing files ---
+    existing_files = set()
+    for f in os.listdir(save_dir):
+        if f.endswith(".pdb"):
+            # store "1ABC" from "1ABC.pdb"
+            existing_files.add(f.split('.')[0])
+            
+    print(f"Found {len(existing_files)} existing .pdb files in directory.")
+    # -------------------------------------
+
     base_url = "https://files.rcsb.org/download"
     print(f"\nStarting download to: {save_dir}")
-    print(f"Target: {target_count} .pdb files")
+    print(f"Target: {target_count} NEW .pdb files")
     
     success_count = 0
     
@@ -143,12 +153,21 @@ def download_only_pdb_structures(structures, save_dir, target_count=10):
     print("-" * 80)
 
     for item in structures:
+        # Stop if we hit our target number of NEW downloads
         if success_count >= target_count:
             break
             
         pdb_id = item['id']
         title = item['title']
         title_trunc = title[:50] + "..." if len(title) > 50 else title
+        
+        # --- NEW: Check if already downloaded ---
+        if pdb_id in existing_files:
+            # We print strictly for info, but do not increment success_count
+            # This ensures we keep looking until we find 'target_count' NEW files.
+            print(f"{'EXISTS':<10} | {pdb_id:<8} | {title_trunc}")
+            continue
+        # ----------------------------------------
         
         filename = f"{pdb_id}.pdb"
         file_path = os.path.join(save_dir, filename)
@@ -164,7 +183,6 @@ def download_only_pdb_structures(structures, save_dir, target_count=10):
                 print(f"{'SAVED':<10} | {pdb_id:<8} | {title_trunc}")
                 
             elif response.status_code == 404:
-                # This is expected for large structures that don't have a .pdb file
                 print(f"{'SKIPPED':<10} | {pdb_id:<8} | No .pdb format available")
             else:
                 print(f"{'ERROR':<10} | {pdb_id:<8} | HTTP {response.status_code}")
@@ -172,20 +190,24 @@ def download_only_pdb_structures(structures, save_dir, target_count=10):
         except requests.exceptions.RequestException as e:
             print(f"{'FAILED':<10} | {pdb_id:<8} | {e}")
 
-    print(f"\nProcess complete. Downloaded {success_count} / {target_count} files.")
+    print(f"\nProcess complete. Downloaded {success_count} new files.")
 
 if __name__ == "__main__":
     # Settings
-    TARGET_DOWNLOADS = 100
-    # Fetch a larger buffer (i.e. 50) to account for skipped files; if files are not pdb -> cif
-    SEARCH_BUFFER = 300 
+    # Increased target downloads since you want to build a large dataset
+    TARGET_NEW_DOWNLOADS = 1000 
     
-    print(f"Fetching latest {SEARCH_BUFFER} RNA candidates from PDB to find {TARGET_DOWNLOADS} valid .pdb files...\n")
+    # Increased buffer significantly to account for existing files + skipped (cif-only) files
+    # If you have 2000 files already, you need a buffer > 2000 to find new ones.
+    SEARCH_BUFFER = 5000 
+    
+    print(f"Fetching latest {SEARCH_BUFFER} RNA candidates from PDB to find {TARGET_NEW_DOWNLOADS} new .pdb files...\n")
     
     candidates = get_latest_rna_structures(limit=SEARCH_BUFFER)
     
     if candidates:
+        # Updated directory path
         target_directory = os.path.join("data", "pdb_training")
-        download_only_pdb_structures(candidates, target_directory, target_count=TARGET_DOWNLOADS)
+        download_only_pdb_structures(candidates, target_directory, target_count=TARGET_NEW_DOWNLOADS)
     else:
         print("No results found in search.")
