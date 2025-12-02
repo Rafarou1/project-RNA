@@ -7,7 +7,7 @@
 
 This project implements a distance-dependent statistical potential to distinguish native RNA folds from non-native ones. The scoring function is derived from the observed frequency of distances between C3' atoms in experimentally determined structures (PDB).
 
-The project has been evolved into a **modern Streamlit Dashboard**, transforming the original discrete scripts into a unified, interactive bioinformatics pipeline while retaining full command-line utility.
+The project has been evolved into a modern Streamlit Dashboard, transforming the original discrete scripts into an interactive bioinformatics pipeline while retaining full command-line utility.
 
 ## Project Structure
 
@@ -18,15 +18,15 @@ project-RNA/RNA_project/
 │   └── potentials/        # Output directory for generated potentials
 ├── app.py                 # The Streamlit Interactive Dashboard
 ├── run_pipeline.py        # Master script for CLI execution
-├── train_potential.py     # Training logic (stat calculation)
-├── plot_potentials.py     # Plotting logic (Static & Grid)
-├── score_structure.py     # Scoring logic (Interpolation & Summation)
-└── rna_utils.py           # Shared utilities (Parsing & Physics)
+├── train_potential.py     # Training logic
+├── plot_potentials.py     # Plotting logic
+├── score_structure.py     # Scoring logic
+└── rna_utils.py           # Shared utilities
 ```
 
 -----
 
-## Usage: Interactive Web Dashboard (Our Favourite)
+## Usage: Interactive Web Dashboard
 
 The web interface provides a guided workflow for training, visualising, and scoring without manually handling command-line arguments.
 
