@@ -62,7 +62,7 @@ def create_combined_plot(x_axis, data, atom, out_file):
     plt.xlabel("Distance (Å)")
     plt.ylabel("Pseudo-Energy Score")
     plt.axhline(0, color="black", linestyle="-", linewidth=1)
-    plt.ylim(-11, 11)
+    plt.ylim(-3, 11)
     plt.legend(bbox_to_anchor=(1.02, 1), loc="upper left", title="Base Pair")
     plt.grid(True, which="both", linestyle="--", alpha=0.5)
     plt.tight_layout()
@@ -89,7 +89,7 @@ def create_grid_plot(x_axis, data, atom, max_dist, out_file):
 
         # Styling
         ax.axhline(0, color="black", linestyle="-", linewidth=0.8)
-        ax.set_ylim(-11, 11)
+        ax.set_ylim(-3, 11)
         ax.grid(True, linestyle="--", alpha=0.5)
 
         # Labels only on outer edges to save space
