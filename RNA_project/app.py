@@ -7,10 +7,9 @@ import zipfile
 import io
 import plotly.graph_objects as go
 import plotly.express as px
+from plotly.subplots import make_subplots
 
 # --- Shared Utilities ---
-# We define these locally or import them if rna_utils.py is reliable.
-# Assuming rna_utils.py is present as per previous context.
 try:
     from rna_utils import parse_pdb_atoms, get_bin_index, pair_key, load_params, PAIR_TYPES
 except ImportError:
@@ -135,8 +134,8 @@ def run_training_engine(pdb_dir, out_dir, atom_type, max_dist, bin_width, status
 
     return True, f"Processed {processed_count} files."
 
-def run_plotting_engine(pot_dir):
-    """Engine 2: Generates Plotly figures from potentials."""
+def run_plotting_engine(pot_dir, plot_type="Combined Overlay"):
+    """Engine 2: Generates Plotly figures (Combined or Grid)."""
     try:
         atom, max_dist, bin_width = load_params(pot_dir)
     except:
@@ -144,36 +143,84 @@ def run_plotting_engine(pot_dir):
 
     nbins = int(math.ceil(max_dist / bin_width))
     x_axis = [i * bin_width + (bin_width / 2) for i in range(nbins)]
-    
-    fig = go.Figure()
     colors = px.colors.qualitative.Safe 
 
-    for idx, pair in enumerate(PAIR_TYPES):
-        fname = os.path.join(pot_dir, f"potential_{pair}.txt")
-        if os.path.exists(fname):
-            with open(fname, "r") as f:
-                scores = [float(line.strip()) for line in f if line.strip()]
-            
-            if len(scores) == len(x_axis):
-                fig.add_trace(go.Scatter(
-                    x=x_axis, y=scores, mode='lines', name=pair,
-                    line=dict(width=2, color=colors[idx % len(colors)]),
-                    hovertemplate=f"<b>{pair}</b><br>Dist: %{{x:.1f}}Å<br>Energy: %{{y:.2f}}<extra></extra>"
-                ))
+    # --- Mode 1: Combined Overlay ---
+    if plot_type == "Combined Overlay":
+        fig = go.Figure()
+        for idx, pair in enumerate(PAIR_TYPES):
+            fname = os.path.join(pot_dir, f"potential_{pair}.txt")
+            if os.path.exists(fname):
+                with open(fname, "r") as f:
+                    scores = [float(line.strip()) for line in f if line.strip()]
+                
+                if len(scores) == len(x_axis):
+                    fig.add_trace(go.Scatter(
+                        x=x_axis, y=scores, mode='lines', name=pair,
+                        line=dict(width=2, color=colors[idx % len(colors)]),
+                        hovertemplate=f"<b>{pair}</b><br>Dist: %{{x:.1f}}Å<br>Energy: %{{y:.2f}}<extra></extra>"
+                    ))
+        
+        fig.update_layout(
+            title=f"Statistical Potentials ({atom}) - Overlay",
+            xaxis_title="Distance (Å)",
+            yaxis_title="Pseudo-energy (kT)",
+            template="simple_white",
+            hovermode="x unified",
+            height=600,
+            legend=dict(yanchor="top", y=0.99, xanchor="left", x=1.01)
+        )
+        fig.add_shape(type="line", x0=0, y0=0, x1=max_dist, y1=0, line=dict(color="black", width=1, dash="dash"))
+        fig.update_yaxes(range=[-11, 11])
+        return fig, None
 
-    fig.update_layout(
-        title=f"Statistical Potentials ({atom})",
-        xaxis_title="Distance (Å)",
-        yaxis_title="Pseudo-energy (kT)",
-        template="simple_white",
-        hovermode="x unified",
-        height=550,
-        legend=dict(yanchor="top", y=0.99, xanchor="left", x=1.01)
-    )
-    fig.add_shape(type="line", x0=0, y0=0, x1=max_dist, y1=0,
-                  line=dict(color="black", width=1, dash="dash"))
-    fig.update_yaxes(range=[-11, 11])
-    return fig, None
+    # --- Mode 2: Grid View ---
+    elif plot_type == "Grid View":
+        # Create 2 rows x 5 columns
+        fig = make_subplots(
+            rows=2, cols=5, 
+            subplot_titles=PAIR_TYPES,
+            shared_xaxes=True, shared_yaxes=True,
+            horizontal_spacing=0.03, vertical_spacing=0.1
+        )
+        
+        for idx, pair in enumerate(PAIR_TYPES):
+            row = (idx // 5) + 1
+            col = (idx % 5) + 1
+            
+            fname = os.path.join(pot_dir, f"potential_{pair}.txt")
+            if os.path.exists(fname):
+                with open(fname, "r") as f:
+                    scores = [float(line.strip()) for line in f if line.strip()]
+                
+                if len(scores) == len(x_axis):
+                    fig.add_trace(
+                        go.Scatter(
+                            x=x_axis, y=scores, mode='lines', name=pair,
+                            line=dict(width=2, color="blue"), # Uniform color for grid
+                            showlegend=False,
+                            hovertemplate=f"<b>{pair}</b><br>Dist: %{{x:.1f}}Å<br>Energy: %{{y:.2f}}<extra></extra>"
+                        ),
+                        row=row, col=col
+                    )
+            
+            # Add zero line for each subplot
+            fig.add_shape(type="line", x0=0, y0=0, x1=max_dist, y1=0, 
+                          line=dict(color="black", width=1, dash="dash"),
+                          row=row, col=col)
+
+        fig.update_layout(
+            title=f"Statistical Potentials ({atom}) - Grid View",
+            template="simple_white",
+            height=700,
+        )
+        fig.update_yaxes(range=[-11, 11])
+        # Add axis labels to bottom left (approximate for shared axes)
+        fig.update_xaxes(title_text="Distance (Å)", row=2, col=3)
+        fig.update_yaxes(title_text="Score", row=1, col=1)
+        fig.update_yaxes(title_text="Score", row=2, col=1)
+
+        return fig, None
 
 def run_scoring_engine(pdb_path, pot_dir):
     """Engine 3: Scores a structure."""
@@ -242,16 +289,14 @@ def main():
             label_visibility="collapsed"
         )
 
-        # Global Params (Always visible for context, but editable only in Pipeline)
+        # Global Params
         st.divider()
         st.markdown("**💡 Hint : Current Settings**")
         
-        # We store these in session state to persist between pages
         if "atom_type" not in st.session_state: st.session_state["atom_type"] = "C3'"
         if "max_dist" not in st.session_state: st.session_state["max_dist"] = 20.0
         if "bin_width" not in st.session_state: st.session_state["bin_width"] = 1.0
         
-        # Display current settings (read-only here, editable in dashboard)
         st.caption(f"Atom: {st.session_state['atom_type']}")
         st.caption(f"Max Dist: {st.session_state['max_dist']} Å")
         st.caption(f"Bin Width: {st.session_state['bin_width']} Å")
@@ -260,7 +305,6 @@ def main():
     if "Welcome" in nav_selection:
         st.title("Welcome Page")
         
-        # Expanded Introduction with Scientific Detail
         st.markdown("""
         ### Description
         
@@ -274,7 +318,7 @@ def main():
         Where $P_{obs}$ is the observed probability of a pair (e.g., A-U) being at distance $r$, and $P_{ref}$ is the reference probability in a "pooled" state (ignoring base identity).
         
         **2. Our Pipeline's Logic**
-        * **Training:** The model extracts C3'-C3' distances from your training set. It considers only residues with a sequence separation $\ge$ 4 to capture tertiary interactions rather than local backbone geometry. However, you can choose to train on different atoms if preferred.
+        * **Training:** The model extracts C3'-C3' distances from your training set. It considers only residues with a sequence separation $\ge$ 4 to capture tertiary interactions rather than local backbone geometry.
         * **Visualisation:** Distance-dependent profiles are generated for all 10 base-pair combinations (AA, AU, GC, etc.).
         * **Scoring:** New structures are scored by summing the potentials of all applicable atom pairs. Negative scores indicate a structure that matches the training distribution (i.e. favourable).
         
@@ -282,8 +326,6 @@ def main():
         """)
 
         st.subheader("Data Deposit")
-        
-        # Directory Selection UI improvement
         st.info("💡 **Tip:** You can drag and drop an entire **folder** containing PDB files directly into the box below.")
         
         uploaded_files = st.file_uploader(
@@ -294,11 +336,9 @@ def main():
         )
         
         if uploaded_files:
-            # Create persistent temp dir
             if not st.session_state["training_data_dir"]:
                 st.session_state["training_data_dir"] = tempfile.mkdtemp(prefix="rna_train_")
             
-            # Save
             paths = []
             progress_text = st.empty()
             progress_text.text("Saving uploaded files to memory...")
@@ -324,11 +364,10 @@ def main():
         
         # 1. CONFIGURATION
         with st.expander("⚙️ Pipeline Configuration", expanded=not st.session_state["pipeline_run"]):
-                    c1, c2, c3 = st.columns(3)
-                    
-                    c1.selectbox("Atom Type", ["C3'", "P", "C4'", "C5'", "O3'"], key="atom_type")
-                    c2.number_input("Max Distance (Å)", value=20.0, key="max_dist")
-                    c3.number_input("Bin Width (Å)", value=1.0, step=0.1, key="bin_width")
+            c1, c2, c3 = st.columns(3)
+            c1.selectbox("Atom Type", ["C3'", "P", "C4'", "C5'", "O3'"], key="atom_type")
+            c2.number_input("Max Distance (Å)", value=20.0, key="max_dist")
+            c3.number_input("Bin Width (Å)", value=1.0, step=0.1, key="bin_width")
         
         # 2. EXECUTION
         col_exec, col_status = st.columns([1, 3])
@@ -347,17 +386,17 @@ def main():
             # A. Training
             status_box.write("1. Training Model...")
             tmp_out = tempfile.mkdtemp()
+            
             success, msg = run_training_engine(
                 st.session_state["training_data_dir"], 
                 tmp_out, 
                 st.session_state["atom_type"], 
                 st.session_state["max_dist"], 
-                bin_width,
-                status_box # Pass container for progress bar
+                st.session_state["bin_width"],
+                status_box 
             )
             
             if success:
-                # Persist Potentials
                 persist_dir = os.path.join(tempfile.gettempdir(), "rna_pipeline_results")
                 if os.path.exists(persist_dir): shutil.rmtree(persist_dir)
                 shutil.copytree(tmp_out, persist_dir)
@@ -365,8 +404,6 @@ def main():
                 st.session_state["pipeline_run"] = True
                 
                 status_box.write("2. Generating Visualisations...")
-                # (Visualisation happens dynamically in the results tab below)
-                
                 status_box.update(label="Pipeline Completed Successfully! ✅", state="complete", expanded=False)
                 st.rerun()
             else:
@@ -375,14 +412,18 @@ def main():
 
         st.divider()
 
-        # 3. RESULTS AREA (Only show if pipeline has run)
+        # 3. RESULTS AREA
         if st.session_state["pipeline_run"] and st.session_state["potentials_dir"]:
             
             tab_viz, tab_score, tab_download = st.tabs(["Potentials Plot", "Score Structure", "Files to Download"])
             
             # --- TAB: VISUALISATION ---
             with tab_viz:
-                fig, err = run_plotting_engine(st.session_state["potentials_dir"])
+                # NEW Dropdown for plot type
+                plot_choice = st.selectbox("Select Plot Type", ["Combined Overlay", "Grid View"])
+                
+                # Pass choice to engine
+                fig, err = run_plotting_engine(st.session_state["potentials_dir"], plot_type=plot_choice)
                 if fig:
                     st.plotly_chart(fig, use_container_width=True)
                 else:
@@ -423,7 +464,6 @@ def main():
             with tab_download:
                 st.write("Download the trained statistical potentials.")
                 
-                # Create Zip
                 buf = io.BytesIO()
                 with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zip_obj:
                     p_dir = st.session_state["potentials_dir"]

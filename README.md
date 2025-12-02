@@ -1,59 +1,109 @@
-# project-RNA
+# Project-RNA
 
 **Course:** M2 GENIOMHE - RNA Structure Bioinformatics  
 **Goal:** Creation of an objective function for the RNA folding problem
 
 ## Project Overview
+
 This project implements a distance-dependent statistical potential to distinguish native RNA folds from non-native ones. The scoring function is derived from the observed frequency of distances between C3' atoms in experimentally determined structures (PDB).
 
-The pipeline consists of three modules:
-1.  **Training:** Deriving statistical potentials from PDB data.
-2.  **Visualization:** Plotting interaction profiles.
-3.  **Scoring:** Estimating the Gibbs free energy of new structures.
-
----
+The project has been evolved into a **modern Streamlit Dashboard**, transforming the original discrete scripts into a unified, interactive bioinformatics pipeline while retaining full command-line utility.
 
 ## Project Structure
 
 ```text
 project-RNA/RNA_project/
 ├── data/
-│   ├── pdb_training/
-│   └── potentials/
-├── train_potential.py
-├── plot_potentials.py
-├── score_structure.py
-├── rna_utils.py
-└── run_pipeline.py  
+│   ├── pdb_training/      # Directory for training PDB files
+│   └── potentials/        # Output directory for generated potentials
+├── app.py                 # The Streamlit Interactive Dashboard
+├── run_pipeline.py        # Master script for CLI execution
+├── train_potential.py     # Training logic (stat calculation)
+├── plot_potentials.py     # Plotting logic (Static & Grid)
+├── score_structure.py     # Scoring logic (Interpolation & Summation)
+└── rna_utils.py           # Shared utilities (Parsing & Physics)
 ```
 
-### 1\. Training
+-----
+
+## Usage: Interactive Web Dashboard (Our Favourite)
+
+The web interface provides a guided workflow for training, visualising, and scoring without manually handling command-line arguments.
+
+### **1. Launch the App**
+
+```bash
+streamlit run app.py
+```
+
+### **2. Dashboard Features**
+
+  * **Welcome & Data Deposit:**
+      * **Drag and Drop:** Supports uploading individual PDB files or dragging entire folders.
+      * **In Memory Caching:** Uploaded files are processed in a persistent session state, eliminating the need for manual file system management (Stored in RAM). 
+  * **Pipeline Configuration:**
+      * **Atom Selection:** Supports C3' (default), P, C4', C5', and O3'.
+      * **Parameters:** tunable **Max Distance** ($d_{max}$, default 20Å) and **Bin Width** (default 1.0Å).
+  * **Interactive Visualisation:**
+      * **Engine:** Built on **Plotly** for dynamic inspection and because it looks cool :).
+      * **Modes:**
+          * **Combined Overlay:** All 10 base pairs plotted on a single axis for comparison.
+          * **Grid View:** A 2x5 subplot matrix isolating specific interactions (ex. AA vs. GC).
+  * **Real-time Scoring:**
+      * Upload a target PDB to receive an instant pseudo-energy score.
+      * Returns the total Gibbs free energy estimate and the count of interactions used.
+
+-----
+
+## Usage: Command Line Pipeline
+
+For batch processing or server-side automation, the original Python scripts remain fully functional.
+
+### **Option A: Run the Full Pipeline**
+
+The `run_pipeline.py` script orchestrates the entire flow: Training $\rightarrow$ Plotting $\rightarrow$ Scoring.
+
+```bash
+python run_pipeline.py
+```
+
+*Note: This utilizes paths defined in `config.py` (if present) or internal defaults.*
+
+### **Option B: Run Individual Modules**
+
+#### **1. Training**
 
 Calculates distance distributions for 10 base pairs (AA, AU, etc.) and a reference state (XX).
 
-  * **Atom:** C3' (customizable).
-  * **Constraints:** Intrachain distances only; sequence separation $|i-j| \ge 4$.
-  * **Output:** Generates `potential_{pair}.txt` files and a `params.txt` configuration file.
+  * **Algorithm:** Iterates through all atom pairs $(i, j)$ where sequence separation $|i-j| \ge 4$.
+  * **Smoothing:** Applies a pseudocount ($\epsilon = 1e^{-12}$) to prevent singularities during log calculations.
+  * **Clipping:** Scores are clamped to the range $[-10.0, 10.0]$ to handle rare events.
 
 <!-- end list -->
 
 ```bash
-# Standard run with default parameters (C3', 20Å cut-off, 1Å bins)
-# All parameters are customizable
 python train_potential.py --pdb_dir data/pdb_training --out_dir data/potentials --verbose
 ```
 
-### 2\. Visualization
+#### **2. Visualisation**
 
-Plots the pseudo-energy score as a function of distance. Requires the `params.txt` generated in step 1 to correctly scale the X-axis.
+Generates static images of the potentials using Matplotlib.
+
+  * **Outputs:** Generates both a combined overlay plot and a 2x5 grid layout for detailed inspection.
+
+<!-- end list -->
 
 ```bash
-python plot_potentials.py --in_dir data/potentials --out_png potentials.png
+python plot_potentials.py --in_dir data/potentials --out_combined potentials_combined.png --out_grid potentials_grid.png
 ```
 
-### 3\. Scoring
+#### **3. Scoring**
 
-Evaluates a target structure by summing the pseudo-energy of all valid pairwise interactions using linear interpolation.
+Evaluates a target structure by summing the pseudo-energy of all valid pairwise interactions.
+
+  * **Interpolation:** Uses linear interpolation between bin centers to provide continuous scoring for distances falling between defined bin intervals.
+
+<!-- end list -->
 
 ```bash
 python score_structure.py --pdb data/pdb_training/1EHZ.pdb --pot_dir data/potentials
@@ -61,26 +111,42 @@ python score_structure.py --pdb data/pdb_training/1EHZ.pdb --pot_dir data/potent
 
 -----
 
-## Current Status & Preliminary Results
+## Methodology
 
-**Dataset:**
-We have currently established the pipeline using a **single PDB file (`1EHZ.pdb`)** as a proof-of-concept.
+### The Inverse Boltzmann Principle
 
-**Observations:**
+The pipeline assumes that frequently observed structural features correspond to low-energy states. We calculate a pseudo-energy ($E$) for a base pair type $ab$ at distance $r$ using the inverse Boltzmann relation:
 
-  * **Potentials:** The resulting plots (`potentials.png`) are "jagged" with many values hitting the maximum penalty ceiling (+10.0). This is expected because a single structure can't provide data for all distance bins for all base pairs.
-  * **Scoring:** The native structure `1EHZ` currently yields a positive pseudo-energy (here `+14.63`). Since statistical potentials should yield negative scores for native folds, this confirms that the current training set is too sparse.
+$$
+E_{ab}(r) = -kT \ln \left( \frac{P_{obs}(r | ab)}{P_{ref}(r)} \right)
+$$
 
-**Next Steps:**
+Where:
 
-  * [ ] **Scale Up:** Run `train_potential.py` on a large dataset (RNA-Puzzles or non-redundant PDB list) to smooth the interaction curves.
-  * [ ] **KDE:** Implement Kernel Density Estimation to replace discrete histograms for better continuity (if possible in Python).
+  * **$P_{obs}(r | ab)$**: The observed probability of finding pair type $ab$ at distance $r$ in the training set.
+  * **$P_{ref}(r)$**: The reference probability derived from a "pooled" state (all residues treated indistinguishably).
+
+### Technical Details
+
+  * **Sequence Separation:** Only pairs $(i, j)$ with $|i - j| \ge 4$ are counted to capture tertiary packing rather than local secondary structure constraints.
+  * **Reference State:** The reference state is constructed by aggregating all observed pairs regardless of identity, normalizing by the total count of all pairs.
+  * **Interpolation Logic:**
+      * If $d \le 0$: Use first bin score.
+      * If $d \ge d_{max}$: Use last bin score.
+      * Else: Linearly interpolate between the centers of the two enclosing bins.
 
 -----
 
 ## Requirements
 
-  * Python 3.8+
-  * Matplotlib
+  * **Python 3.11+**
+  * **Streamlit** (Web Interface)
+  * **Plotly** (Interactive Graphing)
+  * **Matplotlib** (Static Graphing)
+  * **NumPy** (Math operations)
 
-<!-- end list -->
+To install all dependencies:
+
+```bash
+pip install streamlit plotly matplotlib numpy
+```
