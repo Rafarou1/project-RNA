@@ -148,5 +148,5 @@ Where:
 To install all dependencies:
 
 ```bash
-pip install streamlit plotly matplotlib numpy
+pip install streamlit plotly matplotlib pandas numpy streamlit-option-menu streamlit-lottie
 ```

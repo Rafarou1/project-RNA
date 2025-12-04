@@ -1,0 +1,10 @@
+[theme]
+base = "dark"
+primaryColor = "#00ADB5"    # Teal/Cyberpunk Blue
+backgroundColor = "#222831" # Deep Charcoal
+secondaryBackgroundColor = "#393E46" # Lighter Charcoal for sidebar
+textColor = "#EEEEEE"
+font = "sans serif"
+
+[server]
+runOnSave = true
