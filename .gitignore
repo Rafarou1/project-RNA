@@ -12,6 +12,7 @@ __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
+.DS_Store
 
 # keep a project-specific safe entry too (fixing the typo)
 /RNA_project/__pycache__/
