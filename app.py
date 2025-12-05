@@ -41,8 +41,8 @@ def load_lottieurl(url: str):
         if r.status_code != 200:
             return None
         return r.json()
-    except Exception as e:
-        return None, f"Params missing: {e}"
+    except Exception:
+        return None
 
 
 # Scientific DNA/RNA Loading Animation
