@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """
 run_pipeline.py
+
+Run the full RNA statistical potential training, plotting, and scoring pipeline.
 """
 
 import subprocess

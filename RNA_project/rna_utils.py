@@ -1,3 +1,10 @@
+#!/usr/bin/env python3
+"""
+rna_utils.py
+
+Utility functions for RNA statistical potential analysis.
+"""
+
 import os
 import sys
 
@@ -18,7 +25,7 @@ PAIR_TYPES = [
 
 def parse_pdb_atoms(pdb_path, atom_type):
     """
-    Parse atoms from a PDB file.
+    Parse atoms from a PDB file and extract specified atom coordinates for valid RNA bases.
     Returns a dict: chain_id -> list of (seq_index_in_chain, resname, (x,y,z))
     """
     chains = {}
@@ -26,35 +33,43 @@ def parse_pdb_atoms(pdb_path, atom_type):
 
     try:
         with open(pdb_path, "r") as f:
+            # Stop at the end of the first model
             for line in f:
                 if line.startswith("ENDMDL"):
                     break
                 if not line.startswith("ATOM"):
                     continue
 
+                # Parse relevant fields
                 atom_name = line[12:16].strip()
                 resname = line[17:20].strip()
                 chain_id = line[21].strip() or " "
                 resseq = line[22:26].strip()
                 icode = line[26]
 
+                # Filter for specified atom type and valid bases
                 if atom_name != atom_type or resname not in VALID_BASES:
                     continue
 
+                # Handle alternate locations
                 altloc = line[16].strip()
                 if altloc not in ("", "A"):
                     continue
 
                 resid = (chain_id, resseq, icode)
+
+                # Extract coordinates
                 try:
                     coords = (
                         float(line[30:38]),
                         float(line[38:46]),
                         float(line[46:54]),
                     )
+                    # Initialize chain if not present
                     if chain_id not in chains:
                         chains[chain_id] = []
                         last_resid[chain_id] = None
+                    # Avoid duplicates for the same residue
                     if last_resid[chain_id] != resid:
                         chains[chain_id].append(
                             (len(chains[chain_id]), resname, coords)
@@ -97,9 +112,7 @@ def load_params(path):
 
 
 def load_pair_data(directory, nbins=None, prefix="potential"):
-    """
-    Generic loader for pair files (potential_AA.txt or counts_AA.txt).
-    """
+    """Generic loader for pair files (potential_AA.txt or counts_AA.txt)."""
     data = {}
     for pair in PAIR_TYPES:
         filename = os.path.join(directory, f"{prefix}_{pair}.txt")

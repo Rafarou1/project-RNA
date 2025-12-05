@@ -58,6 +58,26 @@ streamlit run app.py
 
 -----
 
+## Shared Architecture
+
+`rna_utils.py`
+
+This module centralizes all the shared logic and functions between the scripts, ensuring that they have the same behaviour when needed. It includes:
+
+* **Robust Parsing**: Handles PDB parsing complexities, including extracting specific atoms (C3'), handling alternate locations, and stopping after the first model (essential for NMR structures).
+* **Consistent Geometry**: Defines the logic for valid base pairs (sequence separation $|i-j| \ge 4$) and distance binning in one place.
+**Math & I/O**: Contains the linear interpolation function and the generic file loader (load_pair_data) used by both the scorer and the plotter.
+
+`config.py`
+
+Acts as the central source for file paths:
+
+* Defines absolute paths based on the script's location.
+
+* Ensures that train_potential.py, score_structure.py, and run_pipeline.py all automatically find the data/ directory, regardless of where the command is executed from
+
+-----
+
 ## Usage: Command Line Pipeline
 
 For batch processing or server-side automation, the original Python scripts remain fully functional.
@@ -72,7 +92,7 @@ python run_pipeline.py
 
 *Note: This utilizes paths defined in `config.py` (if present) or internal defaults.*
 
-You can also do a custom run with other variables (here using Phosphorus atoms, 25Å cutoff, and saving to a new folder)
+You can also do a custom run with other variables (here using Phosphorus atoms, 25Å cutoff, and saving to a new folder).
 
 ```bash
 python run_pipeline.py --atom P --max_dist 25.0 --out_dir results/phosphorus_experiment
@@ -91,19 +111,19 @@ Calculates distance distributions for 10 base pairs (AA, AU, etc.) and a referen
 <!-- end list -->
 
 ```bash
-python train_potential.py --pdb_dir data/pdb_training --out_dir data/potentials --verbose
+python train_potential.py --pdb_dir data/pdb_training --out_dir data/potentials_multi --verbose
 ```
 
 #### **2. Visualisation**
 
 Generates static images of the potentials using Matplotlib.
 
-  * **Outputs:** Generates both a combined overlay plot and a 2x5 grid layout for detailed inspection.
+  * **Outputs:** Generates both a combined overlay plot and a 2x5 grid layout for detailed inspection. Also ouputs an histogram with raw counts of observed distances (to verify data quality).
 
 <!-- end list -->
 
 ```bash
-python plot_potentials.py --in_dir data/potentials --out_combined potentials_combined.png --out_grid potentials_grid.png
+python plot_potentials.py --in_dir data/potentials_multi_
 ```
 
 #### **3. Scoring**
@@ -115,7 +135,7 @@ Evaluates a target structure by summing the pseudo-energy of all valid pairwise 
 <!-- end list -->
 
 ```bash
-python score_structure.py --pdb data/pdb_training/1EHZ.pdb --pot_dir data/potentials
+python score_structure.py --pdb_dir data/pdb_training --pot_dir data/potentials_multi
 ```
 
 -----
@@ -151,6 +171,8 @@ Where:
 * **High Positive Score (+10):** Unfavorable distance (e.g., steric clash < 4Å).
 * **Negative Score (Wells):** Favorable distance (e.g., at ~5-6Å).
 * **Jagged Plots:** If plots look spiky or flat, the training dataset is too small. Add more PDB files to smooth out the curves.
+
+-----
 
 ## Requirements
 

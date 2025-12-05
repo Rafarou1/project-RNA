@@ -1,3 +1,10 @@
+#!/usr/bin/env python3
+"""
+config.py
+
+Configuration file for RNA project paths and settings.
+"""
+
 import os
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))

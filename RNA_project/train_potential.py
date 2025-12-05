@@ -62,14 +62,16 @@ def parse_arguments():
 
 
 def main():
+    # Parse arguments
     args = parse_arguments()
     os.makedirs(args.out_dir, exist_ok=True)
-
     nbins = int(math.ceil(args.max_dist / args.bin_width))
+
     # Initialize counts
     pair_counts = {p: [0] * nbins for p in PAIR_TYPES}
     ref_counts = [0] * nbins
 
+    # Gather PDB files
     files = [
         os.path.join(args.pdb_dir, f)
         for f in os.listdir(args.pdb_dir)
@@ -98,12 +100,11 @@ def main():
                 if key in pair_counts:
                     pair_counts[key][idx] += 1
                     ref_counts[idx] += 1
-
         processed_count += 1
 
     print("Calculating potentials...")
 
-    # Avoid exact zeros in reference: tiny pseudocount
+    # Avoid exact zeros in reference: EPS is a tiny pseudocount
     EPS = 1e-12
     total_ref = sum(ref_counts) + EPS
 
@@ -135,9 +136,9 @@ def main():
                     score = 10.0
                 # Clamp scores to avoid extreme values
                 score = min(max(score, -10.0), 10.0)
-
             scores.append(score)
 
+        # C. Save Potential Profile
         out_path = os.path.join(args.out_dir, f"potential_{pair}.txt")
         with open(out_path, "w") as out_f:
             for s in scores:
