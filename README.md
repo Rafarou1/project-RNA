@@ -15,13 +15,16 @@ The project has been evolved into a modern Streamlit Dashboard, transforming the
 project-RNA/RNA_project/
 ├── data/
 │   ├── pdb_training/      # Directory for training PDB files
-│   └── potentials/        # Output directory for generated potentials
-├── app.py                 # The Streamlit Interactive Dashboard
-├── run_pipeline.py        # Master script for CLI execution
-├── train_potential.py     # Training logic
-├── plot_potentials.py     # Plotting logic
-├── score_structure.py     # Scoring logic
-└── rna_utils.py           # Shared utilities
+│   └── potentials_multi/  # Output directory for generated potentials
+├── app/
+│   ├── app.py             # Script for the application
+├── run_pipeline.py        # Master script: Runs Training -> Plotting -> Scoring
+├── train_potential.py     # Training logic: Extracts statistics from PDBs
+├── plot_potentials.py     # Plotting logic: Generates Potentials & Histograms
+├── score_structure.py     # Scoring logic: Evaluates structures
+├── rna_utils.py           # Shared library (Parsing, Math, Loading)
+├── config.py              # Centralized path configuration
+└── README.md              # Here you are!
 ```
 
 -----
@@ -68,6 +71,12 @@ python run_pipeline.py
 ```
 
 *Note: This utilizes paths defined in `config.py` (if present) or internal defaults.*
+
+You can also do a custom run with other variables (here using Phosphorus atoms, 25Å cutoff, and saving to a new folder)
+
+```bash
+python run_pipeline.py --atom P --max_dist 25.0 --out_dir results/phosphorus_experiment
+```
 
 ### **Option B: Run Individual Modules**
 
@@ -136,6 +145,12 @@ Where:
       * Else: Linearly interpolate between the centers of the two enclosing bins.
 
 -----
+
+## Results Interpretation
+
+* **High Positive Score (+10):** Unfavorable distance (e.g., steric clash < 4Å).
+* **Negative Score (Wells):** Favorable distance (e.g., at ~5-6Å).
+* **Jagged Plots:** If plots look spiky or flat, the training dataset is too small. Add more PDB files to smooth out the curves.
 
 ## Requirements
 
