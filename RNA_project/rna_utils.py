@@ -96,6 +96,29 @@ def load_params(path):
         sys.exit(1)
 
 
+def load_pair_data(directory, nbins=None, prefix="potential"):
+    """
+    Generic loader for pair files (potential_AA.txt or counts_AA.txt).
+    """
+    data = {}
+    for pair in PAIR_TYPES:
+        filename = os.path.join(directory, f"{prefix}_{pair}.txt")
+
+        if not os.path.exists(filename):
+            if prefix == "potential":
+                print(f"Warning: {filename} not found.")
+            continue
+
+        with open(filename, "r") as f:
+            values = [float(line.strip()) for line in f if line.strip()]
+
+        if nbins is not None and len(values) != nbins:
+            print(f"Warning: {filename} has {len(values)} lines, expected {nbins}.")
+
+        data[pair] = values
+    return data
+
+
 def iterate_valid_pairs(chains, min_seq_sep=4):
     """
     Generator that yields valid intrachain pairs.

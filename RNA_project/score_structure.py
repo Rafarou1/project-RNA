@@ -17,8 +17,8 @@ from rna_utils import (
     parse_pdb_atoms,
     pair_key,
     load_params,
+    load_pair_data,
     iterate_valid_pairs,
-    PAIR_TYPES,
 )
 
 
@@ -37,22 +37,6 @@ def parse_arguments():
     )
     parser.add_argument("--verbose", action="store_true", help="Print detailed info.")
     return parser.parse_args()
-
-
-def load_potentials(pot_dir, nbins):
-    potentials = {}
-    for pair in PAIR_TYPES:
-        fname = os.path.join(pot_dir, f"potential_{pair}.txt")
-        if not os.path.exists(fname):
-            print(f"Warning: Missing potential file {fname}")
-            continue
-        with open(fname, "r") as f:
-            scores = [float(line.strip()) for line in f if line.strip()]
-        if len(scores) != nbins:
-            print(f"Warning: {pair} has {len(scores)} bins, expected {nbins}.")
-
-        potentials[pair] = scores
-    return potentials
 
 
 def interpolate_score(dist, scores, bin_width, max_dist):
@@ -121,7 +105,7 @@ def main():
     nbins = int(math.ceil(max_dist / bin_width))
 
     # Load Potentials
-    potentials = load_potentials(args.pot_dir, nbins)
+    potentials = load_pair_data(args.pot_dir, nbins, prefix="potential")
     if not potentials:
         sys.exit("No potentials loaded.")
 

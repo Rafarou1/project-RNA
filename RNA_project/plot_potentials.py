@@ -13,7 +13,7 @@ import argparse
 import matplotlib.pyplot as plt
 import math
 import sys
-from rna_utils import load_params, PAIR_TYPES
+from rna_utils import load_params, load_pair_data, PAIR_TYPES
 
 
 def parse_arguments():
@@ -35,24 +35,6 @@ def parse_arguments():
         help="Filename for grid histograms.",
     )
     return parser.parse_args()
-
-
-def load_data(in_dir, prefix, x_axis_len):
-    """Pre-loads all potential files into a dictionary."""
-    data = {}
-    for pair in PAIR_TYPES:
-        filename = os.path.join(in_dir, f"{prefix}_{pair}.txt")
-        if os.path.exists(filename):
-            with open(filename, "r") as f:
-                scores = [float(line.strip()) for line in f if line.strip()]
-
-            if len(scores) == x_axis_len:
-                data[pair] = scores
-            else:
-                print(f"Warning: {pair} data length mismatch. Skipping.")
-        else:
-            print(f"Warning: {filename} not found.")
-    return data
 
 
 def create_combined_plot(x_axis, data, atom, out_file):
@@ -165,8 +147,8 @@ def main():
     x_axis = [i * bin_width + (bin_width / 2) for i in range(nbins)]
 
     # 3. Load Data
-    pot_data = load_data(args.in_dir, "potential", len(x_axis))
-    hist_data = load_data(args.in_dir, "counts", len(x_axis))
+    pot_data = load_pair_data(args.in_dir, nbins=len(x_axis), prefix="potential")
+    hist_data = load_pair_data(args.in_dir, nbins=len(x_axis), prefix="counts")
 
     # 4. Generate Plots
     create_combined_plot(x_axis, pot_data, atom, args.out_combined)
