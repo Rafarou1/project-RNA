@@ -60,6 +60,7 @@ def main():
     os.makedirs(args.out_dir, exist_ok=True)
 
     nbins = int(math.ceil(args.max_dist / args.bin_width))
+    # Initialize counts
     pair_counts = {p: [0] * nbins for p in PAIR_TYPES}
     ref_counts = [0] * nbins
 
@@ -76,7 +77,7 @@ def main():
         f"Configuration: Atom={args.atom}, MaxDist={args.max_dist}A, BinWidth={args.bin_width}A"
     )
 
-    # --- Collect statistics from all PDBs ---
+    # 1. Collect statistics from all PDBs
     processed_count = 0
     for fpath in files:
         if args.verbose:
@@ -112,9 +113,15 @@ def main():
     EPS = 1e-12
     total_ref = sum(ref_counts) + EPS
 
-    # --- Compute potentials for each pair type ---
+    # 2. Compute potentials for each pair type
     for pair in PAIR_TYPES:
-        # Compute scores for each bin
+        # A. Save Raw Counts
+        count_file = os.path.join(args.out_dir, f"counts_{pair}.txt")
+        with open(count_file, "w") as f:
+            for c in pair_counts[pair]:
+                f.write(f"{c}\n")
+
+        # B. Compute Scores & Calculate Potential
         scores = []
         total_pair = sum(pair_counts[pair]) + EPS
 
@@ -144,7 +151,11 @@ def main():
 
         print(f"Wrote {out_path}")
 
-    # Write the Summary file
+    # 3. Saving data
+    with open(os.path.join(args.out_dir, "counts_XX.txt"), "w") as f:
+        for c in ref_counts:
+            f.write(f"{c}\n")
+
     summary_path = os.path.join(args.out_dir, "summary.txt")
     with open(summary_path, "w") as s_f:
         s_f.write(f"pdb_files_processed: {processed_count}\n")
@@ -158,7 +169,6 @@ def main():
             total_for_pair = sum(pair_counts[p])
             s_f.write(f"  {p}: {total_for_pair}\n")
 
-    # Write the Params file
     params_path = os.path.join(args.out_dir, "params.txt")
     with open(params_path, "w") as p_f:
         p_f.write(f"{args.atom}\n")

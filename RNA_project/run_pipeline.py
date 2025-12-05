@@ -58,7 +58,6 @@ def run_full_pipeline(args):
         print(f"Created directory: {args.out_dir}")
 
     # 1. TRAINING
-    # ---------------------------------------------------------
     print("\n--- Step 1: Training ---")
     cmd_train = [
         sys.executable,
@@ -80,12 +79,12 @@ def run_full_pipeline(args):
     run_command(cmd_train)
 
     # 2. PLOTTING
-    # ---------------------------------------------------------
     print("\n--- Step 2: Plotting ---")
 
     dir_name = os.path.basename(os.path.normpath(args.out_dir))
     plot_combined = os.path.join(args.out_dir, f"combined_{dir_name}.png")
     plot_grid = os.path.join(args.out_dir, f"grid_{dir_name}.png")
+    plot_hist = os.path.join(args.out_dir, f"histograms_{dir_name}.png")
 
     cmd_plot = [
         sys.executable,
@@ -96,11 +95,12 @@ def run_full_pipeline(args):
         plot_combined,
         "--out_grid",
         plot_grid,
+        "--out_hist",
+        plot_hist,
     ]
     run_command(cmd_plot)
 
     # 3. SCORING
-    # ---------------------------------------------------------
     print("\n--- Step 3: Scoring ---")
     cmd_score = [
         sys.executable,

@@ -1,14 +1,14 @@
-pdb_files_processed: 101
-total_distance_counts: 318894
+pdb_files_processed: 1001
+total_distance_counts: 4088320
 parameters used: Atom=C3', Max=20.0, Width=1.0
 counts_per_pair:
-  AA: 28798
-  AU: 46575
-  AC: 48130
-  AG: 63685
-  UU: 18251
-  UC: 0
-  UG: 0
-  CC: 19828
-  CG: 58686
-  GG: 34941
+  AA: 293293
+  AU: 476692
+  AC: 475660
+  AG: 655481
+  UU: 178156
+  CU: 364487
+  GU: 502077
+  CC: 192576
+  CG: 585330
+  GG: 364568

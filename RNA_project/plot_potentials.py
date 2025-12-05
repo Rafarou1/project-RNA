@@ -29,14 +29,19 @@ def parse_arguments():
     parser.add_argument(
         "--out_grid", default="potentials_grid.png", help="Filename for the grid plot."
     )
+    parser.add_argument(
+        "--out_hist",
+        default="histograms_grid.png",
+        help="Filename for grid histograms.",
+    )
     return parser.parse_args()
 
 
-def load_all_scores(in_dir, x_axis_len):
+def load_data(in_dir, prefix, x_axis_len):
     """Pre-loads all potential files into a dictionary."""
     data = {}
     for pair in PAIR_TYPES:
-        filename = os.path.join(in_dir, f"potential_{pair}.txt")
+        filename = os.path.join(in_dir, f"{prefix}_{pair}.txt")
         if os.path.exists(filename):
             with open(filename, "r") as f:
                 scores = [float(line.strip()) for line in f if line.strip()]
@@ -107,6 +112,43 @@ def create_grid_plot(x_axis, data, atom, max_dist, out_file):
     plt.close()
 
 
+def create_histogram_plot(x_axis, data, atom, max_dist, out_file, bin_width):
+    """Generates a 2x5 grid plot specifically for Histograms (Bar charts)."""
+    # sharey=False because counts vary wildly between AA (rare) and GC (common)
+    fig, axes = plt.subplots(2, 5, figsize=(20, 8), sharex=True, sharey=False)
+    axes = axes.flatten()
+
+    for i, pair in enumerate(PAIR_TYPES):
+        ax = axes[i]
+
+        if pair in data:
+            # Plot Bar Chart
+            ax.bar(
+                x_axis, data[pair], width=bin_width * 0.9, color="tab:orange", alpha=0.7
+            )
+            total = int(sum(data[pair]))
+            ax.set_title(f"{pair} (N={total})", fontsize=10, fontweight="bold")
+        else:
+            ax.text(0.5, 0.5, "No Data", ha="center", transform=ax.transAxes)
+            ax.set_title(f"{pair} (Missing)", fontsize=10, color="red")
+
+        ax.grid(True, linestyle="--", alpha=0.5)
+
+        # Labels
+        if i >= 5:
+            ax.set_xlabel("Dist (Å)")
+        if i % 5 == 0:
+            ax.set_ylabel("Count")
+
+    plt.suptitle(
+        f"RNA Raw Distance Counts ({atom} atom) - {max_dist}Å Cutoff", fontsize=14
+    )
+    plt.tight_layout()
+    plt.savefig(out_file, dpi=300)
+    print(f"Saved histogram plot to: {os.path.basename(out_file)}")
+    plt.close()
+
+
 def main():
     args = parse_arguments()
 
@@ -123,11 +165,13 @@ def main():
     x_axis = [i * bin_width + (bin_width / 2) for i in range(nbins)]
 
     # 3. Load Data
-    data = load_all_scores(args.in_dir, len(x_axis))
+    pot_data = load_data(args.in_dir, "potential", len(x_axis))
+    hist_data = load_data(args.in_dir, "counts", len(x_axis))
 
     # 4. Generate Plots
-    create_combined_plot(x_axis, data, atom, args.out_combined)
-    create_grid_plot(x_axis, data, atom, max_dist, args.out_grid)
+    create_combined_plot(x_axis, pot_data, atom, args.out_combined)
+    create_grid_plot(x_axis, pot_data, atom, max_dist, args.out_grid)
+    create_histogram_plot(x_axis, hist_data, atom, max_dist, args.out_hist, bin_width)
 
 
 if __name__ == "__main__":
