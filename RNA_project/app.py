@@ -151,6 +151,10 @@ def run_training_engine(
             for s in scores:
                 out_f.write(f"{s:.6f}\n")
 
+        with open(os.path.join(out_dir, f"counts_{pair}.txt"), "w") as out_c:
+            for c in pair_counts[pair]:
+                out_c.write(f"{c}\n")
+
     with open(os.path.join(out_dir, "params.txt"), "w") as p_f:
         p_f.write(f"{atom_type}\n{max_dist}\n{bin_width}\n")
 
@@ -198,8 +202,36 @@ def run_plotting_engine(pot_dir, plot_type="Combined Overlay"):
             title=f"Potential Landscape ({atom})", template="plotly_dark", height=600
         )
         return fig, None
-
-    # --- Mode 2: Combined Overlay ---
+    
+    # --- Mode 2: Histogram ---
+    elif plot_type == "Raw Counts (Histogram)":
+        fig = make_subplots(
+            rows=2, cols=5, subplot_titles=PAIR_TYPES,
+            shared_xaxes=True, shared_yaxes=False, # Y-axis not shared because counts vary wildly
+            horizontal_spacing=0.03, vertical_spacing=0.1
+        )
+        for idx, pair in enumerate(PAIR_TYPES):
+            row = (idx // 5) + 1
+            col = (idx % 5) + 1
+            
+            # Read the counts file we created in Step 1
+            fname = os.path.join(pot_dir, f"counts_{pair}.txt")
+            if os.path.exists(fname):
+                with open(fname, "r") as f: 
+                    counts = [float(line.strip()) for line in f if line.strip()]
+                
+                if len(counts) == len(x_axis):
+                    fig.add_trace(go.Bar(
+                        x=x_axis, y=counts, name=pair,
+                        marker_color="#F59E0B", # Orange color for contrast
+                        showlegend=False,
+                        hovertemplate=f"<b>{pair}</b><br>Dist: %{{x:.1f}}Å<br>Count: %{{y}}<extra></extra>"
+                    ), row=row, col=col)
+        
+        fig.update_layout(title=f"Raw Interaction Counts ({atom})", template="plotly_dark", height=700)
+        return fig, None
+    
+    # --- Mode 3: Combined Overlay ---
     elif plot_type == "Combined Overlay":
         fig = go.Figure()
         for idx, pair in enumerate(PAIR_TYPES):
@@ -238,7 +270,7 @@ def run_plotting_engine(pot_dir, plot_type="Combined Overlay"):
         fig.update_yaxes(range=[-11, 11])
         return fig, None
 
-    # --- Mode 3: Grid View ---
+    # --- Mode 4: Grid View ---
     elif plot_type == "Grid View":
         fig = make_subplots(
             rows=2,
@@ -563,10 +595,7 @@ def main():
             with tab_viz:
                 c_sel, _ = st.columns([1, 3])
                 with c_sel:
-                    # --- NEW: Added Heatmap to Dropdown ---
-                    plot_choice = st.selectbox(
-                        "View Mode", ["Combined Overlay", "Grid View", "Heatmap Matrix"]
-                    )
+                    plot_choice = st.selectbox("View Mode", ["Combined Overlay", "Grid View", "Heatmap Matrix", "Raw Counts (Histogram)"])
 
                 fig, err = run_plotting_engine(
                     st.session_state["potentials_dir"], plot_type=plot_choice
