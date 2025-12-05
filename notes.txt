@@ -1,0 +1,6 @@
+For the non-log formula, first identify the all-atom representation and how to obtain it, such that you can then perform the following:
+
+log(A/B) = A - B / L(A,B) where:
+
+A is the single atom representation?!
+And B is the all-atom representation / reference
