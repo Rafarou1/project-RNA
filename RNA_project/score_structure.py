@@ -13,7 +13,13 @@ import os
 import math
 import argparse
 import sys
-from rna_utils import parse_pdb_atoms, pair_key, load_params, PAIR_TYPES
+from rna_utils import (
+    parse_pdb_atoms,
+    pair_key,
+    load_params,
+    iterate_valid_pairs,
+    PAIR_TYPES,
+)
 
 
 def parse_arguments():
@@ -94,26 +100,16 @@ def score_single_file(pdb_path, atom_type, potentials, bin_width, max_dist):
     total_score = 0.0
     pairs_used = 0
 
-    for chain_id, residues in chains.items():
-        n = len(residues)
-        for i in range(n):
-            for j in range(i + 4, n):
-                # residue format: (index, resname, coords)
-                r1_name = residues[i][1]
-                r1_coords = residues[i][2]
-                r2_name = residues[j][1]
-                r2_coords = residues[j][2]
+    for r1_name, r1_coords, r2_name, r2_coords in iterate_valid_pairs(chains):
+        d = math.dist(r1_coords, r2_coords)
 
-                d = math.dist(r1_coords, r2_coords)
+        if d < max_dist:
+            key = pair_key(r1_name, r2_name)
+            if key in potentials:
+                score = interpolate_score(d, potentials[key], bin_width, max_dist)
+                total_score += score
+                pairs_used += 1
 
-                if d < max_dist:
-                    key = pair_key(r1_name, r2_name)
-                    if key in potentials:
-                        score = interpolate_score(
-                            d, potentials[key], bin_width, max_dist
-                        )
-                        total_score += score
-                        pairs_used += 1
     return total_score, pairs_used
 
 

@@ -94,3 +94,20 @@ def load_params(path):
     except Exception as e:
         print(f"Error reading parameters from {params_path}: {e}")
         sys.exit(1)
+
+
+def iterate_valid_pairs(chains, min_seq_sep=4):
+    """
+    Generator that yields valid intrachain pairs.
+    Yields: (res1_name, res1_coords, res2_name, res2_coords)
+    """
+    for chain_id, residues in chains.items():
+        n = len(residues)
+        # residues format: (index, resname, coords)
+        for i in range(n):
+            for j in range(i + min_seq_sep, n):
+                r1 = residues[i]
+                r2 = residues[j]
+
+                # Yield the names and coordinates
+                yield r1[1], r1[2], r2[1], r2[2]

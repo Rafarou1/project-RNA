@@ -20,7 +20,13 @@ import os
 import math
 import argparse
 import sys
-from rna_utils import parse_pdb_atoms, get_bin_index, pair_key, PAIR_TYPES
+from rna_utils import (
+    parse_pdb_atoms,
+    get_bin_index,
+    pair_key,
+    iterate_valid_pairs,
+    PAIR_TYPES,
+)
 
 
 def parse_arguments():
@@ -83,28 +89,16 @@ def main():
         if args.verbose:
             print(f"Processing: {os.path.basename(fpath)}")
         chains = parse_pdb_atoms(fpath, args.atom)
-        for chain_id, residues in chains.items():
-            n = len(residues)
-            # Consider all residue pairs with separation >= 4
-            for i in range(n):
-                for j in range(i + 4, n):  # i, i+4, i+5, ...
-                    # Extract coordinates + compute distance
-                    coords_i = residues[i][2]
-                    coords_j = residues[j][2]
-                    d = math.dist(coords_i, coords_j)
+        for r1_name, r1_coords, r2_name, r2_coords in iterate_valid_pairs(chains):
+            d = math.dist(r1_coords, r2_coords)
+            idx = get_bin_index(d, args.max_dist, args.bin_width)
 
-                    # Determine bin index
-                    idx = get_bin_index(d, args.max_dist, args.bin_width)
+            if idx is not None:
+                key = pair_key(r1_name, r2_name)
+                if key in pair_counts:
+                    pair_counts[key][idx] += 1
+                    ref_counts[idx] += 1
 
-                    if idx is not None:
-                        # Determine pair type
-                        res_i = residues[i][1]
-                        res_j = residues[j][1]
-                        key = pair_key(res_i, res_j)
-
-                        if key in pair_counts:
-                            pair_counts[key][idx] += 1
-                            ref_counts[idx] += 1
         processed_count += 1
 
     print("Calculating potentials...")
